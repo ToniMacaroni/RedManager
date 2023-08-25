@@ -1,0 +1,149 @@
+:root {
+  /* font-family: Inter, Avenir, Helvetica, Arial, sans-serif; */
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+
+  color: #f6f6f6;
+  background: url('https://raw.githubusercontent.com/tauri-apps/tauri/master/assets/tauri.png') no-repeat center center fixed;
+  background-color: #0d1117;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+.container {
+  margin: 0;
+  padding-top: 10vh;
+  padding: 5vh 4vh 0vh 4vh;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: 0.75s;
+}
+
+.logo.tauri:hover {
+  filter: drop-shadow(0 0 2em #24c8db);
+}
+
+.row {
+  display: flex;
+  justify-content: center;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+
+a:hover {
+  color: #24c8db;
+}
+
+h1 {
+  text-align: center;
+}
+
+input,
+button {
+  border-radius: 8px;
+  border: 1px solid #272d36;
+  padding: 0.8em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  color: #ffffff;
+  transition: border-color 0.25s;
+}
+
+input {
+  background: #010409;
+  /* border: 1px solid ; */
+}
+
+button {
+  cursor: pointer;
+  margin-bottom: 0.5em;
+  background: #21262d;
+  border: 1px solid rgba(240,246,252,0.1);
+}
+
+.outline-btn {
+  cursor: pointer;
+  margin-bottom: 0.5em;
+  background: transparent;
+  /* border: 1px solid #5b5b5b; */
+  border: 0px;
+}
+
+.outline-btn:hover {
+  background: #292f36;
+}
+
+button:hover {
+  border-color: #396cd8;
+}
+
+button:active {
+  border-color: #396cd8;
+  background-color: #0f0f0f69;
+}
+
+input,
+button {
+  outline: none;
+}
+
+.tabs {
+  display: flex;
+  background: #010409;
+  padding: 0.2em;
+  margin: 0;
+  border-bottom: 1px solid #272d36;
+}
+
+.tab {
+  padding: 8px 20px;
+  margin: 5px 0 5px 5px;
+  border-radius: 0.5em;
+  color: #959595;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: #ffffff;
+  background: #171b20;
+}
+
+.activetab {
+  color: #ffffff;
+  border-bottom: 2px solid #f78166;
+  border-radius: 0.5em 0.5em 0 0;
+}
+
+.uninstall {
+  color: #fd9b9d;
+}
+
+.install {
+  color: #2ea043;
+}
