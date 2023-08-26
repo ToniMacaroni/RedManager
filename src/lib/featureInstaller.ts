@@ -28,6 +28,7 @@ export class FeatureInstaller {
 
     public currentMode: InstallMode = InstallMode.Install;
     public currentModeState: string = "Install";
+    public description: string | null = null;
 
     public expectedMode: InstallMode | null = null;
 
@@ -195,8 +196,11 @@ let ueUninstaller = new BaseUninstaller([
 let ueInstaller = new GithubInstaller(unityExplorerInfo, "UnityExplorer");
 
 export let debugInstaller = new FeatureInstaller(loaderDebugInstaller, loaderUninstaller);
+
 export let loaderFeature = new FeatureInstaller(loaderInstaller, loaderUninstaller, "_RedLoader\\net6\\RedLoader.dll");
+
 export let ueFeature = new FeatureInstaller(ueInstaller, ueUninstaller);
+ueFeature.description = "UnityExplorer is a modding tool which lets you analyze and manipulate the game at runtime."
 
 let bieUninstaller = new BaseUninstaller([
     "BepInEx"

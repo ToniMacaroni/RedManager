@@ -5,9 +5,11 @@
     import { onMount } from 'svelte';
 
   export let feature: FeatureInstaller;
+
   $: currentMode = feature.currentModeState;
   $: currentClass = currentMode.toLowerCase();
   $: shouldBeVisible = true;
+  $: description = feature.description;
 
   async function handleWrapper(callback: () => Promise<void>) {
     processing.set(true);
@@ -56,14 +58,19 @@
 </script>
 
 {#if shouldBeVisible}
+  <div class="feature-container" class:description={description} >
+    {#if description}
+        <span class="description-content">{description}</span>
+    {/if}
   {#if currentMode==="Update"}
     <div class="horizontal">
-      <button on:click={handleUpdate} class="update">Update {feature.getName()}</button>
-      <button on:click={handleUninstall} class="uninstall">Uninstall {feature.getName()}</button>
+      <button on:click={handleUpdate} class="update btn-left">Update {feature.getName()}</button>
+      <button on:click={handleUninstall} class="uninstall btn-right">Uninstall {feature.getName()}</button>
     </div>
   {:else}
     <button on:click={handleDefault} class="{currentClass}">{currentMode} {feature.getName()}</button>
   {/if}
+  </div>
 {/if}
 
 <style>
@@ -76,7 +83,31 @@
   .horizontal > * {
     /* margin-right: 1em; */
     flex: 1;
-    margin-left: 5px;
-    margin-right: 5px;
+  }
+
+  .feature-container > * {
+    width: 100%;
+  }
+
+  .description {
+    padding: 10px;
+    border-radius: 10px;
+    border: 2px dashed #414141;
+  }
+
+  .description-content {
+    margin-bottom: 1em;
+    display: block;
+    text-align: center;
+    font-size: 0.9em;
+    color: #a2a2a2;
+  }
+
+  .btn-left {
+    border-radius: 10px 0 0 10px;
+  }
+
+  .btn-right {
+    border-radius: 0 10px 10px 0;
   }
 </style>
