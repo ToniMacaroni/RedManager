@@ -12,12 +12,14 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^1.4.0",
+    "semver": "^7.5.4",
     "tauri-plugin-upload-api": "github:tauri-apps/tauri-plugin-upload#v1"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^2.4.2",
     "@tauri-apps/cli": "^1.4.0",
     "@tsconfig/svelte": "^5.0.0",
+    "@types/semver": "^7.5.0",
     "svelte": "^4.0.5",
     "svelte-check": "^3.4.6",
     "svelte-preprocess": "^5.0.0",

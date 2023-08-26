@@ -11,4 +11,8 @@ export class BaseInstaller {
     public getName(): string {
         return this._name;
     }
+
+    public getTargetVersion(): Promise<string | null> {
+        return Promise.resolve("");
+    }
 }

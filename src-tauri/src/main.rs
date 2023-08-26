@@ -6,12 +6,91 @@ use std::fs;
 use zip::read::ZipArchive;
 
 use std::io::{BufReader, BufRead};
-use std::path::PathBuf;
-use winreg::RegKey;
-use winreg::enums::*;
+use winreg::{RegKey, enums::*};
 use regex::Regex;
 
+use std::ffi::OsStr;
+use std::iter::once;
+use std::os::windows::ffi::OsStrExt;
+
+use std::{env, error::Error, path::Path, path::PathBuf, ptr::null_mut, slice};
+use windows::{
+    core,
+    Win32::Storage::FileSystem::{GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW, VS_FIXEDFILEINFO},
+};
+
 const SOTF_APP_ID: &str = "1326470";
+
+#[tauri::command]
+fn is_dotnet6_installed() -> Result<bool, String> {
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let key = hklm.open_subkey_with_flags(
+        r"SOFTWARE\WOW6432Node\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App", 
+        KEY_READ
+    ).map_err(|op| op.to_string())?;
+
+    let contains_dotnet_6 = key
+        .enum_values()
+        .filter_map(Result::ok)
+        .any(|(name, _)| name.starts_with("6."));
+
+    Ok(contains_dotnet_6)
+}
+
+#[tauri::command]
+fn get_file_version(path: String) -> Result<String, String> {
+    let desc = get_file_description(path).map_err(|e| e.to_string())?;
+    Ok(desc)
+}
+
+fn get_file_description(path: impl AsRef<Path>) -> Result<String, Box<dyn Error>> {
+    let size = unsafe { GetFileVersionInfoSizeW(path.as_ref().as_os_str(), null_mut()) };
+    if size == 0 {
+        return Err(core::Error::from_win32().into());
+    }
+
+    let mut buffer = vec![0u8; size as usize];
+    unsafe {
+        GetFileVersionInfoW(
+            path.as_ref().as_os_str(),
+            0,
+            size,
+            buffer.as_mut_ptr() as *mut std::ffi::c_void,
+        )
+    }
+    .ok()?;
+
+    let mut ptr = null_mut();
+    let mut len = 0;
+    let success = unsafe {
+        VerQueryValueW(
+            buffer.as_ptr() as *const std::ffi::c_void,
+            "\\",
+            &mut ptr,
+            &mut len,
+        )
+    }.as_bool();
+
+    if !success {
+        return Err("Failed to query file description".into());
+    }
+
+    let info = ptr as *const VS_FIXEDFILEINFO;
+    unsafe{
+        if (*info).dwSignature != 0xfeef04bd {
+            return Err("Invalid fixed file info signature".into());
+        }
+
+        let description = *info;
+        
+        Ok(format!("{}.{}.{}", 
+            description.dwFileVersionMS >> 16,
+            description.dwFileVersionMS & 0xffff,
+            description.dwFileVersionLS >> 16,
+        ))
+    }
+
+}
 
 #[tauri::command]
 async fn get_steam_path() -> Option<String> {
@@ -102,7 +181,7 @@ fn unzip_handler(source: String, destination: String) -> Result<(), String> {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![unzip_handler, get_steam_path])
+        .invoke_handler(tauri::generate_handler![unzip_handler, get_steam_path, is_dotnet6_installed, get_file_version])
         .plugin(tauri_plugin_upload::init())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

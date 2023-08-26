@@ -1,6 +1,6 @@
 <script lang="ts">
   import Greet from './lib/InstallationComponent.svelte'
-  import { gameExePath, isPathValid, processName, processProgress, processing } from './lib/store';
+  import { gameExePath, isDotnetInstalled, isPathValid, processName, processProgress, processing } from './lib/store';
   import Page1 from './pages/MainPage.svelte';
   import Page2 from './pages/AdditionalsPage.svelte';
   import { onMount } from "svelte";
@@ -36,6 +36,15 @@
       gameExePath.set(steamPath as string);
       isPathValid.set(true);
     } catch (err) {
+      console.log(err);
+    }
+
+    try {
+      let hasDotnet = await invoke("is_dotnet6_installed");
+      console.log(hasDotnet);
+      isDotnetInstalled.set(hasDotnet as boolean);
+    }
+    catch (err) {
       console.log(err);
     }
   })

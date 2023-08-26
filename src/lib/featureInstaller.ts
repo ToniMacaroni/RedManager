@@ -2,9 +2,12 @@ import { DebugInstaller } from "./debugInstaller";
 import type { BaseInstaller } from "./baseInstaller";
 import { processName } from "./store";
 import { BaseUninstaller } from "./baseUninstaller";
-import { writable } from "svelte/store";
+import { writable, get } from "svelte/store";
 import { GithubInstaller } from "./GithubInstaller";
 import { redLoaderInfo, unityExplorerInfo } from "./githubInfo";
+import { invoke, path } from "@tauri-apps/api";
+import { gameExePath } from "./store";
+import semver from "semver";
 
 export enum InstallMode {
     Install,
@@ -12,18 +15,26 @@ export enum InstallMode {
     Update
 }
 
+export enum VersionResult {
+    Equal,
+    Greater,
+    Lesser,
+}
+
 export class FeatureInstaller {
     private _installer: BaseInstaller | null;
     private _uninstaller: BaseUninstaller;
+    private _versionCheckPath: string | null = null;
 
     public currentMode: InstallMode = InstallMode.Install;
     public currentModeState: string = "Install";
 
     public expectedMode: InstallMode | null = null;
 
-    constructor(installer: BaseInstaller | null, uninstaller: BaseUninstaller) {
+    constructor(installer: BaseInstaller | null, uninstaller: BaseUninstaller, versionCheckPath: string | null = null) {
         this._installer = installer;
         this._uninstaller = uninstaller;
+        this._versionCheckPath = versionCheckPath;
     }
 
     public async install(): Promise<void> {
@@ -45,6 +56,9 @@ export class FeatureInstaller {
     public async handle(mode: InstallMode): Promise<void> {
         switch (mode) {
             case InstallMode.Install:
+                await this.install();
+                break;
+            case InstallMode.Update:
                 await this.install();
                 break;
             case InstallMode.Uninstall:
@@ -81,19 +95,71 @@ export class FeatureInstaller {
         switch (this.getMode()) {
             case InstallMode.Install:
                 return "Install";
-            case InstallMode.Uninstall:
-                return "Uninstall";
             case InstallMode.Update:
                 return "Update";
+            case InstallMode.Uninstall:
+                return "Uninstall";
         }
     }
 
-    public async refreshMode() : Promise<void>{
+    public async refreshMode() : Promise<void> {
         if(await this._uninstaller.isInstalled()){
-            this.setMode(InstallMode.Uninstall);
+            if(await this.checkRemoteVersion() === VersionResult.Greater) {
+                this.setMode(InstallMode.Update);
+            }else {
+                this.setMode(InstallMode.Uninstall);                
+            }
         }else {
             this.setMode(InstallMode.Install);
         }
+    }
+
+    public async checkRemoteVersion(): Promise<VersionResult | null> {
+        if(!this._versionCheckPath)
+        {
+            return null;
+        }
+
+        let localVersion = await this.getLocalVersion();
+        if(!localVersion)
+        {
+            return null;
+        }
+
+        let remoteVersion = await this._installer?.getTargetVersion();
+        if(!remoteVersion)
+        {
+            return null;
+        }
+
+        console.log("Local version:",localVersion);
+        console.log("Remote version:",remoteVersion);
+
+        if(semver.gt(remoteVersion, localVersion)) {
+            return VersionResult.Greater;
+        }else if(semver.lt(remoteVersion, localVersion)) {
+            return VersionResult.Lesser;
+        }else {
+            return VersionResult.Equal;
+        }
+    }
+
+    async getLocalVersion(): Promise<string | null> {
+        if(!this._versionCheckPath)
+        {
+            return null;
+        }
+
+        try {
+            const exeDir = await path.dirname(get(gameExePath));
+            return await invoke("get_file_version", {
+                path: exeDir + "\\" + this._versionCheckPath
+            });
+        } catch (error) {
+            console.log(error);
+        }
+
+        return null;
     }
 
     public async canDoAction(): Promise<Boolean>{
@@ -129,7 +195,7 @@ let ueUninstaller = new BaseUninstaller([
 let ueInstaller = new GithubInstaller(unityExplorerInfo, "UnityExplorer");
 
 export let debugInstaller = new FeatureInstaller(loaderDebugInstaller, loaderUninstaller);
-export let loaderFeature = new FeatureInstaller(loaderInstaller, loaderUninstaller);
+export let loaderFeature = new FeatureInstaller(loaderInstaller, loaderUninstaller, "_RedLoader\\net6\\RedLoader.dll");
 export let ueFeature = new FeatureInstaller(ueInstaller, ueUninstaller);
 
 let bieUninstaller = new BaseUninstaller([

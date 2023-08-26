@@ -3,6 +3,7 @@ import { path } from '@tauri-apps/api'
 
 export const gameExePath = writable('');
 export const isPathValid = writable(false);
+export const isDotnetInstalled = writable(false);
 
 export const processing = writable(false);
 export const processName = writable('');
