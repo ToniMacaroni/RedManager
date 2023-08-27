@@ -16,7 +16,7 @@
             <InstallFeature feature={feature} />
         {/each}
     {/if}
-    {#if $isDotnetInstalled}
+    {#if !$isDotnetInstalled}
         <br>
         <span style="color: #a2a2a2;font-weight: 500"><a href="https://dotnet.microsoft.com/en-us/download/dotnet/thank-you/runtime-desktop-6.0.21-windows-x64-installer" target="_blank">Dotnet 6</a> is needed for the loader to work!</span>
     {/if}
