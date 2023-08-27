@@ -14,8 +14,24 @@
     "allowlist": {
       "all": false,
       "shell": {
-        "all": false,
-        "open": true
+        "all": true,
+        "scope": [
+          {
+            "name": "dotnet-template-check",
+            "cmd": "dotnet",
+            "args": ["new", { "validator": "\\S+" }, "-h"]
+          },
+          {
+            "name": "dotnet-install-template",
+            "cmd": "dotnet",
+            "args": ["new", "install", "RedLoader.Templates"]
+          },
+          {
+            "name": "dotnet-create-project",
+            "cmd": "dotnet",
+            "args": ["new", "sotfmod", "-n", { "validator": ".*" }, "-g", { "validator": ".*" }, "-o", { "validator": ".*" }]
+          }
+        ]
       },
       "fs": {
         "all": true,

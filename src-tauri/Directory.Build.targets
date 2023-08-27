@@ -1,0 +1,51 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project>
+    <Target Name="CopyToGame" AfterTargets="Build" Condition="'$(DisableCopyToGame)' != 'True'">
+        <PropertyGroup>
+            <OutputAssemblyName>$(OutputPath)$(AssemblyName)</OutputAssemblyName>
+            <ManifestPath>$(OutputPath)manifest.json</ManifestPath>
+            <CanCopy>True</CanCopy>
+            <CopyError Condition="!Exists('$(GameDir)')">Unable to copy assembly to game folder. Game directory doesn't exist</CopyError>
+            <ManifestWarning Condition="!Exists('$(ManifestPath)')">Manifest.json doesn't exist. Without it the mod cannot load</ManifestWarning>
+            <CanCopy Condition="'$(CopyError)' != ''">False</CanCopy>
+        </PropertyGroup>
+        
+        <Warning Text="$(CopyError)" Condition="'$(CopyError)' != ''"/>
+        <Warning Text="$(ManifestWarning)" Condition="'$(ManifestWarning)' != ''"/>
+        <Message Text="Copying '$(AssemblyName)' to '$(GameDir)'." Importance="high" Condition="$(CanCopy)"/>
+        <Copy SourceFiles="$(OutputAssemblyName).dll" DestinationFiles="$(GameDir)\$(AssemblyName).dll" Condition="$(CanCopy)"/>
+        <Copy SourceFiles="$(OutputAssemblyName).pdb" DestinationFiles="$(GameDir)\$(AssemblyName).pdb" Condition="'$(CanCopy)' AND Exists('$(OutputAssemblyName).pdb')"/>
+        <Copy SourceFiles="$(OutputPath)manifest.json" DestinationFiles="$(GameDir)\SampleSonsMod\manifest.json" Condition="'$(CanCopy)' AND Exists('$(OutputPath)manifest.json')"/>
+    </Target>
+    
+    <Target Name="CreateModDir" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+        <PropertyGroup>
+            <BuildDir>$(SolutionDir)ReleaseBuild\</BuildDir>
+            <BuildModDir>$(BuildDir)$(AssemblyName)</BuildModDir>
+            
+            <OutputAssemblyName>$(OutputPath)$(AssemblyName)</OutputAssemblyName>
+            <ManifestPath>$(OutputPath)manifest.json</ManifestPath>
+            
+            <CanCopy>True</CanCopy>
+            <CopyError Condition="!Exists('$(GameDir)')">Unable to copy assembly to game folder. Game directory doesn't exist</CopyError>
+            <ManifestWarning Condition="!Exists('$(ManifestPath)')">Manifest.json doesn't exist. Without it the mod cannot load</ManifestWarning>
+            <CanCopy Condition="'$(CopyError)' != ''">False</CanCopy>
+        </PropertyGroup>
+        
+        <Message Text="Creating mod directory at '$(BuildModDir)'." Importance="high"/>
+        <Copy SourceFiles="$(OutputAssemblyName).dll" DestinationFiles="$(BuildModDir)\Mods\$(AssemblyName).dll" Condition="$(CanCopy)"/>
+        <Copy SourceFiles="$(OutputPath)manifest.json" DestinationFiles="$(BuildModDir)\Mods\$(AssemblyName)\manifest.json" Condition="'$(CanCopy)' AND Exists('$(OutputPath)manifest.json')"/>
+    </Target>
+    
+    <Target Name="CreateZip" AfterTargets="CreateModDir">
+        <PropertyGroup>
+            <BuildDir>$(SolutionDir)ReleaseBuild\</BuildDir>
+            <BuildModDir>$(BuildDir)$(AssemblyName)</BuildModDir>
+            <ZipFile>$(BuildDir)$(AssemblyName).zip</ZipFile>
+        </PropertyGroup>
+        
+        <Message Text="Creating zip file at '$(ZipFile)'." Importance="high"/>
+        <Delete Files="$(ZipFile)"/>
+        <ZipDirectory DestinationFile="$(ZipFile)" SourceDirectory="$(BuildModDir)"/>
+    </Target>
+</Project>

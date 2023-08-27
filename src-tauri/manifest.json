@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ToniMacaroni/RedLoader/main/MetadataSchema.json",
+  "id": "src_tauri",
+  "author": "You",
+  "version": "1.0.0",
+  "description": "A mod that does something.",
+  "gameVersion": "1.0.0",
+  "url": "..."
+}

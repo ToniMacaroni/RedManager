@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net6</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Reference Include="Il2CppInterop.Common">
+        <HintPath>$(GameDir)\_RedLoader\net6\Il2CppInterop.Common.dll</HintPath>
+      </Reference>
+      <Reference Include="Il2CppInterop.Generator">
+        <HintPath>$(GameDir)\_RedLoader\net6\Il2CppInterop.Generator.dll</HintPath>
+      </Reference>
+      <Reference Include="Il2CppInterop.Runtime">
+        <HintPath>$(GameDir)\_RedLoader\net6\Il2CppInterop.Runtime.dll</HintPath>
+      </Reference>
+      <Reference Include="Il2Cppmscorlib">
+        <HintPath>$(GameDir)\_RedLoader\Game\Il2Cppmscorlib.dll</HintPath>
+      </Reference>
+      <Reference Include="RedLoader">
+        <HintPath>$(GameDir)\_RedLoader\net6\RedLoader.dll</HintPath>
+      </Reference>
+      <Reference Include="Sons">
+        <HintPath>$(GameDir)\_RedLoader\Game\Sons.dll</HintPath>
+      </Reference>
+      <Reference Include="SonsSdk">
+        <HintPath>$(GameDir)\_RedLoader\net6\SonsSdk.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine">
+        <HintPath>$(GameDir)\_RedLoader\Game\UnityEngine.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.CoreModule">
+        <HintPath>$(GameDir)\_RedLoader\Game\UnityEngine.CoreModule.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Update="manifest.json">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
+</Project>
