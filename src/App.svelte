@@ -116,7 +116,7 @@
 
   .progress {
     height: 100%;
-    background-color: #f65050;
+    background-color: #f54646;
     transition: width 0.3s;
   }
 </style>
