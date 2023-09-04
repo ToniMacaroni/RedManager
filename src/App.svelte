@@ -31,7 +31,14 @@
       }
   }
 
+  document.addEventListener('DOMContentLoaded', () => {
+    processing.set(false);
+  })
+
   onMount( async () => {
+    processing.set(true);
+    processName.set("Initializing...");
+
     try {
       let steamPath = await invoke("get_steam_path");
       console.log(steamPath);
@@ -67,7 +74,6 @@
   </div>
 
   <div class="container">
-    <!-- <h1>Welcome to {activeTab}!</h1> -->
     <svelte:component this={activeTabComponent} />
   </div>
 
@@ -80,33 +86,6 @@
       </div>
     </div>
   {/if}
-
-  <!-- <h1>Welcome to Tauri!</h1> -->
-
-  <!-- <div class="row">
-    <a href="https://vitejs.dev" target="_blank">
-      <img src="/vite.svg" class="logo vite" alt="Vite Logo" />
-    </a>
-    <a href="https://tauri.app" target="_blank">
-      <img src="/tauri.svg" class="logo tauri" alt="Tauri Logo" />
-    </a>
-    <a href="https://svelte.dev" target="_blank">
-      <img src="/svelte.svg" class="logo svelte" alt="Svelte Logo" />
-    </a>
-  </div>
-
-  <p>
-    Click on the Tauri, Vite, and Svelte logos to learn more.
-  </p> -->
-
-  <!-- <div class="row">
-    <Greet />
-  </div> -->
-
-  <!-- <input id="greet-input" placeholder="Enter a name..." /> -->
-  <!-- <button type="submit" class="uninstall">Greet</button>
-  <button type="submit" class="uninstall">Greet</button>
-  <button type="submit" class="install">Greet</button> -->
 
 </main>
 
@@ -124,12 +103,12 @@
     justify-content: center;
     color: white;
     font-size: 24px;
-    gap: 20px;  /* A gap between the text and the progress bar */
+    gap: 20px;
   }
 
   .progress-bar {
-    background: rgba(255, 255, 255, 0.2); /* Light translucent background */
-    width: 70%; /* Adjust as needed */
+    background: rgba(255, 255, 255, 0.2);
+    width: 70%;
     height: 20px;
     border-radius: 10px;
     overflow: hidden;
@@ -137,7 +116,7 @@
 
   .progress {
     height: 100%;
-    background-color: #f78166; /* Change this to any desired color */
-    transition: width 0.3s; /* Smoothens the progress change */
+    background-color: #f65050;
+    transition: width 0.3s;
   }
 </style>

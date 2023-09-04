@@ -30,6 +30,11 @@
             "name": "dotnet-create-project",
             "cmd": "dotnet",
             "args": ["new", "sotfmod", "-n", { "validator": ".*" }, "-g", { "validator": ".*" }, "-o", { "validator": ".*" }]
+          },
+          {
+            "name": "open-explorer",
+            "cmd": "explorer",
+            "args": [{ "validator": ".*" }]
           }
         ]
       },

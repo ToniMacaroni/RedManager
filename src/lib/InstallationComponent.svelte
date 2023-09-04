@@ -8,8 +8,11 @@
 
   $: currentMode = feature.currentModeState;
   $: currentClass = currentMode.toLowerCase();
-  $: shouldBeVisible = true;
+  $: shouldBeVisible = false;
   $: description = feature.description;
+
+  $: featureLabel = feature.getName();
+  $: loading = true;
 
   async function handleWrapper(callback: () => Promise<void>) {
     processing.set(true);
@@ -43,19 +46,23 @@
 
   onMount( async () => {
     await feature.refreshMode();
-    await refreshVisibility();
     currentMode = feature.currentModeState;
+    featureLabel = feature.getName();
+    await refreshVisibility();
+    loading = false;
   });
 
   async function refreshVisibility()
   {
-    if(!await feature.canDoAction())
-    {
-      shouldBeVisible = false;
-      return;
-    }
+    shouldBeVisible = await feature.canDoAction() as boolean;
   }
 </script>
+
+{#if loading}
+  <div class="feature-container">
+    <span class="description-content">Checking {feature.getName()} installation...</span>
+  </div>
+{/if}
 
 {#if shouldBeVisible}
   <div class="feature-container" class:description={description} >

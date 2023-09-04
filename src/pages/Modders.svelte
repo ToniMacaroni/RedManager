@@ -40,7 +40,6 @@
             processing.set(true);
             processName.set("Creating project...");
 
-            let modName = "MyMod";
             let targetLocation = "";
             let gameDir = await path.dirname(get(gameExePath));
 
@@ -62,6 +61,9 @@
             let result = await cmd.execute();
             console.log(result.stdout);
             console.log(result.stderr);
+
+            cmd = new Command("open-explorer", [targetLocation]);
+            await cmd.execute();
         } catch (err) {
             console.log(err);
         }
@@ -105,7 +107,6 @@
         display: block;
         text-align: center;
         color: #a2a2a2;
-        background-color: #0d1117;
     }
 
     .generic-button {

@@ -7,7 +7,7 @@
 
   color: #f6f6f6;
   background: url('https://raw.githubusercontent.com/tauri-apps/tauri/master/assets/tauri.png') no-repeat center center fixed;
-  background-color: #0d1117;
+  background-color: #181818;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -66,7 +66,7 @@ h1 {
 input,
 button {
   border-radius: 8px;
-  border: 1px solid #272d36;
+  border: 1px solid rgba(252,252,252,0.1);
   padding: 0.8em 1.2em;
   font-size: 1em;
   font-weight: 500;
@@ -76,15 +76,15 @@ button {
 }
 
 input {
-  background: #010409;
+  background: #111;
   /* border: 1px solid ; */
 }
 
 button {
   cursor: pointer;
   margin-bottom: 0.5em;
-  background: #21262d;
-  border: 1px solid rgba(240,246,252,0.1);
+  background: #1f1f1f;
+  border: 1px solid rgba(252,252,252,0.1);
 }
 
 .outline-btn {
@@ -115,7 +115,7 @@ button {
 
 .tabs {
   display: flex;
-  background: #010409;
+  background: #000;
   padding: 0.2em;
   margin: 0;
   border-bottom: 1px solid #272d36;
@@ -131,12 +131,12 @@ button {
 
 .tab:hover {
   color: #ffffff;
-  background: #171b20;
+  background: #1b1b1b;
 }
 
 .activetab {
   color: #ffffff;
-  border-bottom: 2px solid #f78166;
+  border-bottom: 2px solid #f65050;
   border-radius: 0.5em 0.5em 0 0;
 }
 
