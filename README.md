@@ -6,7 +6,11 @@ of the [RedLoader](https://github.com/ToniMacaroni/RedLoader) ecosystem as well 
 Currently it (hopefully) does the job. But in the future it should be able to fully manage your mods and other content.
 
 ## Getting Started
-**[DOWNLOAD HERE](https://github.com/ToniMacaroni/RedManager/releases)**  
+---
+**:arrow_forward:[DOWNLOAD FROM HERE](https://github.com/ToniMacaroni/RedManager/releases):arrow_backward:**  
+*This will take you to the releases page*
+
+---
 You are probably here to install the RedLoader. To do that:
 1) Start the RedManager.
 2) The manager should automatically detect your path. If not, you can set it manually.
