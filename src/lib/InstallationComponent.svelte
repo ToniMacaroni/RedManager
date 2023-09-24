@@ -47,7 +47,7 @@
   onMount( async () => {
     await feature.refreshMode();
     currentMode = feature.currentModeState;
-    featureLabel = feature.getName();
+    featureLabel = await feature.getRemoteVersionString(true)??feature.getName();
     await refreshVisibility();
     loading = false;
   });
@@ -65,17 +65,17 @@
 {/if}
 
 {#if shouldBeVisible}
-  <div class="feature-container" class:description={description} >
+  <div class="feature-container" class:description={description}>
     {#if description}
         <span class="description-content">{description}</span>
     {/if}
   {#if currentMode==="Update"}
     <div class="horizontal">
-      <button on:click={handleUpdate} class="update btn-left">Update {feature.getName()}</button>
+      <button on:click={handleUpdate} class="update btn-left">Update {featureLabel}</button>
       <button on:click={handleUninstall} class="uninstall btn-right">Uninstall {feature.getName()}</button>
     </div>
   {:else}
-    <button on:click={handleDefault} class="{currentClass}">{currentMode} {feature.getName()}</button>
+    <button on:click={handleDefault} class="{currentClass}">{currentMode} {featureLabel}</button>
   {/if}
   </div>
 {/if}

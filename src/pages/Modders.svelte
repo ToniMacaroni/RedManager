@@ -8,6 +8,7 @@
 
     $: isTemplateInstalled = false;
     $: modName = "MyMod";
+    $: appendComments = true;
 
     async function checkForTemplate() {
         try {
@@ -57,7 +58,15 @@
             console.log(targetLocation);
             console.log(gameDir);
 
-            let cmd = new Command("dotnet-create-project", ["new", "sotfmod", "-n", modName, "-g", gameDir, "-o", targetLocation]);
+            let argList = ["new", "sotfmod", "-n", modName, "-g", gameDir, "-o", targetLocation];
+            if (!appendComments) {
+                argList.push("-c", "false");
+            }
+
+            console.log(argList);
+            console.log(`Checked ${appendComments}`);
+    
+            let cmd = new Command("dotnet-create-project", argList);
             let result = await cmd.execute();
             console.log(result.stdout);
             console.log(result.stderr);
@@ -93,9 +102,18 @@
     {:else}
         <div class="description">
             <span>
-                Create a new mod project using the game path set in "Main"
+                Create a new mod project using the game path set in the "Main" tab
             </span>
             <input class="generic-input" type="text" bind:value={modName} />
+            <div class="form-checkbox">
+                <input type="checkbox" id="check" bind:checked={appendComments}>
+                <label for="check">
+                  Append Comments
+                </label>
+                <p class="note">
+                  Append documenting comments to the generated code. Recommended if it's your first mod.
+                </p>
+            </div>
             <button class="generic-button" on:click={createProject}>Create Project</button>
         </div>
     {/if}

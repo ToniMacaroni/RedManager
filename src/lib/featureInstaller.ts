@@ -175,6 +175,16 @@ export class FeatureInstaller {
 
         return true;
     }
+
+    public async getRemoteVersionString(withPrefix: boolean): Promise<string | null> {
+        let version = await this._installer?.getTargetVersion();
+        if(!version)
+        {
+            return null;
+        }
+
+        return withPrefix ? this.getName() + " " + version : version;
+    }
 }
 
 let loaderUninstaller = new BaseUninstaller([

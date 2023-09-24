@@ -151,3 +151,52 @@ button {
 .update {
   color: #659cf0;
 }
+
+.form-checkbox { 
+  padding-left: 30px;
+  margin-bottom: 20px; 
+  text-align: left;
+}
+
+input[type="checkbox"]  { 
+  float: left; 
+  margin: 3px 0 0 -27px;
+  padding: 0px;
+  width: 22px;
+  height: 22px;
+
+  appearance: none;
+  border-radius: 0.15em;
+  transform: translateY(-0.075em);
+  display: grid;
+  place-content: center;
+}
+
+input[type="checkbox"]::before {
+  content: "";
+  border-radius: 2px;
+  width: 0.75em;
+  height: 0.75em;
+  transform: scale(0);
+  transition: 120ms transform ease-in-out;
+  box-shadow: inset 1em 1em #cfcfcf;
+}
+
+input[type="checkbox"]:checked::before {
+  transform: scale(1);
+}
+
+.form-checkbox > label {
+  margin-left: 5px;
+  color: #cfcfcf;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+}
+
+.form-checkbox > .note { 
+  margin-top: 0; 
+  margin-left: 6px;
+  font-size: 0.9em;
+  color: #a2a2a2;
+}
