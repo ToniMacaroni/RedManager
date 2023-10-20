@@ -152,6 +152,14 @@ button {
   color: #659cf0;
 }
 
+.btn-left {
+  border-radius: 10px 0 0 10px;
+}
+
+.btn-right {
+  border-radius: 0 10px 10px 0;
+}
+
 .form-checkbox { 
   padding-left: 30px;
   margin-bottom: 20px; 
@@ -186,6 +194,13 @@ input[type="checkbox"]:checked::before {
   transform: scale(1);
 }
 
+.generic-input {
+  box-sizing: border-box;
+  color: #a2a2a2;
+  text-align: center;
+  margin-bottom: 0.8em;
+}
+
 .form-checkbox > label {
   margin-left: 5px;
   color: #cfcfcf;
@@ -199,4 +214,21 @@ input[type="checkbox"]:checked::before {
   margin-left: 6px;
   font-size: 0.9em;
   color: #a2a2a2;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }

@@ -1,11 +1,11 @@
 import { DebugInstaller } from "./debugInstaller";
 import type { BaseInstaller } from "./baseInstaller";
-import { processName } from "./store";
+import { getDirectoryPath, processName } from "./store";
 import { BaseUninstaller } from "./baseUninstaller";
 import { writable, get } from "svelte/store";
 import { GithubInstaller } from "./GithubInstaller";
 import { redLoaderInfo, unityExplorerInfo } from "./githubInfo";
-import { invoke, path } from "@tauri-apps/api";
+import { fs, invoke, path } from "@tauri-apps/api";
 import { gameExePath } from "./store";
 import semver from "semver";
 
@@ -31,6 +31,7 @@ export class FeatureInstaller {
     public description: string | null = null;
 
     public expectedMode: InstallMode | null = null;
+    public additionalFoldersToCreate: string[] | null = null;
 
     constructor(installer: BaseInstaller | null, uninstaller: BaseUninstaller, versionCheckPath: string | null = null) {
         this._installer = installer;
@@ -47,6 +48,16 @@ export class FeatureInstaller {
         await this.uninstall();
         processName.set("Installing " + this.getName() + "...");
         await this._installer.install();
+
+        if(this.additionalFoldersToCreate)
+        {
+            for (const folder of this.additionalFoldersToCreate) {
+                let dir = await path.join(await getDirectoryPath(), folder);
+                if(!await fs.exists(dir)) {
+                    await fs.createDir(dir);
+                }
+            }
+        }
     }
 
     public async uninstall(): Promise<void> {
@@ -208,6 +219,7 @@ let ueInstaller = new GithubInstaller(unityExplorerInfo, "UnityExplorer");
 export let debugInstaller = new FeatureInstaller(loaderDebugInstaller, loaderUninstaller);
 
 export let loaderFeature = new FeatureInstaller(loaderInstaller, loaderUninstaller, "_RedLoader\\net6\\RedLoader.dll");
+loaderFeature.additionalFoldersToCreate = ["Mods"];
 
 export let ueFeature = new FeatureInstaller(ueInstaller, ueUninstaller);
 ueFeature.description = "UnityExplorer is a modding tool which lets you analyze and manipulate the game at runtime."

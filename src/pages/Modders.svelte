@@ -148,11 +148,4 @@
         font-size: 0.9em;
         color: #a2a2a2;
     }
-
-    .generic-input {
-        box-sizing: border-box;
-        color: #a2a2a2;
-        text-align: center;
-        margin-bottom: 0.8em;
-    }
 </style>

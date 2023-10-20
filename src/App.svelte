@@ -2,8 +2,9 @@
   import Greet from './lib/InstallationComponent.svelte'
   import { gameExePath, isDotnetInstalled, isPathValid, processName, processProgress, processing } from './lib/store';
   import Page1 from './pages/MainPage.svelte';
-  import Page2 from './pages/AdditionalsPage.svelte';
-  import Page3 from './pages/Modders.svelte';
+  import Page2 from './pages/Mods.svelte';
+  import Page3 from './pages/AdditionalsPage.svelte';
+  import Page4 from './pages/Modders.svelte';
   import { onMount } from "svelte";
   import { fade } from 'svelte/transition';
     import { invoke } from '@tauri-apps/api';
@@ -16,9 +17,11 @@
 
   let tabs = [
         { label: "Main", component: Page1 },
-        { label: "Extras", component: Page2 },
-        { label: "Modders", component: Page3 },
+        { label: "Mods", component: Page2 },
+        { label: "Extras", component: Page3 },
+        { label: "Modding", component: Page4 },
     ];
+
   let activeTabComponent = tabs[0].component;
   
   function selectTab(tabComponent) {

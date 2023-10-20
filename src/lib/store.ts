@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store';
-import { path } from '@tauri-apps/api'
+import { path, fs } from '@tauri-apps/api'
 
 export const gameExePath = writable('');
 export const isPathValid = writable(false);
@@ -12,4 +12,13 @@ export const processProgress = writable(0);
 export async function getDirectoryPath(): Promise<string> {
     const exe = get(gameExePath);
     return await path.dirname(exe);
+}
+
+export async function getModsDir(): Promise<string> {
+    let modsDir = await path.join(await getDirectoryPath(), "Mods");
+    if(!await fs.exists(modsDir)) {
+        await fs.createDir(modsDir);
+    }
+
+    return modsDir;
 }
