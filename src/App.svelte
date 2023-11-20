@@ -4,7 +4,7 @@
   import Page1 from './pages/MainPage.svelte';
   import Page2 from './pages/Mods.svelte';
   import Page3 from './pages/AdditionalsPage.svelte';
-  import Page4 from './pages/Modders.svelte';
+  import Page4 from './pages/Modding.svelte';
   import { onMount } from "svelte";
   import { fade } from 'svelte/transition';
     import { invoke } from '@tauri-apps/api';

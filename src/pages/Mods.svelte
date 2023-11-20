@@ -15,6 +15,8 @@
     let onlineSelected = true;
     let installedSelected = true;
 
+    let isGrid = false;
+
     onMount(async () => {
         processing.set(true);
         processProgress.set(0);
@@ -45,18 +47,21 @@
 
 </script>
 
+<svelte:window on:resize={() => isGrid = window.innerWidth > 1000} />
 <div class="column">
     {#if isPathValid}
-        <div class="horizontal">
+        <div class="row-center">
             <input class="generic-input search-input" placeholder="Search" type="text" bind:value={filterTerm} on:input={filter} />
             <button class="btn-left cat-btn" class:cat-btn-selected={onlineSelected} on:click={toggleOnline}>Online</button>
             <button class="btn-right cat-btn" class:cat-btn-selected={installedSelected} on:click={toggleInstalled}>Installed</button>
         </div>
-        <div class="scroller">
+
+        <div class="scroller" class:grid={isGrid}>
             {#each filtered as mod}
-                <ModCard mod={mod}/>
+                <ModCard mod={mod} isGrid={isGrid}/>
             {/each}
         </div>
+
     {:else}
         <b>Set the correct path in the main tab to start browsing mods.</b>
     {/if}
@@ -70,10 +75,10 @@
         overflow-x: hidden;
     }
 
-    .horizontal {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        grid-gap: 1em;
     }
 
     .search-input {

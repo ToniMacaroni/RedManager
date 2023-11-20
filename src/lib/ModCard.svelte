@@ -8,6 +8,7 @@
     import { downloadAndInstall } from './utils';
 
     export let mod: Mod;
+    export let isGrid: boolean = false;
 
     onMount( async () => {
       //await refresh();
@@ -75,11 +76,11 @@
 
 <div class="feature-container description">
   <span class="mod-title">{mod.name} (<a on:click={() => ModDatabase.openModPage(mod)} class="site-link">view on site</a>)</span>
-  <span class="description-content">{mod.short_description}</span>
-  <div class="horizontal">
+  <span class="description-content header-desc">{mod.short_description}</span>
+  <div class="mod-card-horizontal">
     <img class="cover-img" src="{mod.thumbnail_url}" />
     <div class="vertical">
-      {#if mod.isInstalled}
+      {#if mod.isInstalled && !isGrid}
         {#if mod.installedMod?.isEnabled}
           <button class="toggle-button install" on:click={disableMod}>Enabled</button>
         {:else}
@@ -92,11 +93,22 @@
       <span class="description-content">Category: <b class="update">{mod.category_name}</b></span>
     </div>
   </div>
-  <StatusButton isUpdateAvailable={false} isModInstalled={mod.isInstalled} update={update} uninstall={uninstall} install={install} />
+
+  {#if mod.isInstalled && isGrid}
+    {#if mod.installedMod?.isEnabled}
+      <button class="toggle-button grid-toggle-button install" on:click={disableMod}>Enabled</button>
+    {:else}
+      <button class="toggle-button grid-toggle-button uninstall" on:click={enableMod}>Disabled</button>
+    {/if}
+  {/if}
+
+  <div class="bottom-container">
+    <StatusButton isUpdateAvailable={false} isModInstalled={mod.isInstalled} update={update} uninstall={uninstall} install={install} />
+  </div>
 </div>
 
 <style>
-  .horizontal {
+  .mod-card-horizontal {
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -109,13 +121,24 @@
     margin-left: 0.7em;
   }
   
-  .horizontal > * {
+  .mod-card-horizontal > * {
     /* margin-right: 1em; */
     flex: 1;
   }
 
   .feature-container > * {
     width: 100%;
+  }
+
+  .feature-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+  }
+
+  .header-desc {
+    height: 3em;
   }
 
   .description {
@@ -160,6 +183,12 @@
     height: auto;
     border-radius: 10px;
     margin-bottom: 1em;
+  }
+
+  .grid-toggle-button {
+    position: absolute;
+    bottom: 1.4em;
+    left: 1em;
   }
 
   .toggle-button {
