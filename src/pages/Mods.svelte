@@ -25,6 +25,8 @@
 
         await filter();
         processing.set(false);
+
+        isGrid = window.innerWidth > 1000;
     });
 
     async function filter() {
@@ -91,6 +93,7 @@
         margin-top: -4px;
         height: 2.7em;
         width: 6em;
+        color: #a2a2a2;
     }
 
     .cat-btn-selected {

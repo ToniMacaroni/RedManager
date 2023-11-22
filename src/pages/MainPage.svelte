@@ -11,10 +11,14 @@
     async function openFolder() {
         await shell.open(await getDirectoryPath());
     }
+
+    async function startGame() {
+        await shell.open("steam://rungameid/1326470");
+    }
 </script>
 
 <div class="column">
-    <center><img class="big-logo" src="https://raw.githubusercontent.com/ToniMacaroni/SonsModLoader/master/Resources/redlogo.png" alt="Red" width="300"/></center>
+    <center><a href="https://github.com/ToniMacaroni/RedLoader" target="_blank"><img class="big-logo" src="https://raw.githubusercontent.com/ToniMacaroni/SonsModLoader/master/Resources/redlogo.png" alt="Red" width="300"/></a></center>
     <br>
     <PathSelector />
     {#if $isPathValid}
@@ -23,8 +27,10 @@
         {/each}
     {/if}
     <br>
+    <br>
     {#if $isPathValid}
         <button class="tool-button" on:click={openFolder}>Open Game Folder</button>
+        <button class="tool-button" on:click={startGame}>Start Game</button>
     {/if}
     {#if !$isDotnetInstalled}
         <br>
@@ -34,7 +40,11 @@
 
 <style>
     .tool-button {
-        background: transparent;
-        color: #a2a2a2;
+        /* background: transparent; */
+        /* border: 0; */
+        background-color: #1e1e1e;
+        color: #999;
+        /* transition: background-color 0.25s; */
+        /* color: #646cff; */
     }
 </style>

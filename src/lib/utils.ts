@@ -1,5 +1,6 @@
-import { invoke } from '@tauri-apps/api/tauri'
-import { exists } from '@tauri-apps/api/fs'
+import { invoke } from '@tauri-apps/api/tauri';
+import { exists } from '@tauri-apps/api/fs';
+import { dialog } from '@tauri-apps/api';
 import { processName, processProgress } from './store';
 import { TempFileCache } from './tempFileCache';
 import { download } from 'tauri-plugin-upload-api';
@@ -54,4 +55,8 @@ export async function downloadAndInstall(destination: string, downloadUrl: strin
     }
 
     await TempFileCache.clearCache();
+  }
+
+  export async function showMessageBox(title: string, message: string): Promise<void> {
+    await dialog.message(message, { title: title});
   }

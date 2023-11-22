@@ -1,6 +1,6 @@
 import { fs, path} from '@tauri-apps/api'
-import { getDirectoryPath, getModsDir } from './store';
-import { downloadAndInstall } from './utils';
+import { getDirectoryPath, getModsDir, processName } from './store';
+import { downloadAndInstall, showMessageBox } from './utils';
 
 export type Mod = {
     name: string;
@@ -66,14 +66,21 @@ export class ModDatabase {
     // }
 
     public static async loadMods(): Promise<void> {
+        processName.set("Getting initial mod page");
         let result = await (await fetch(MODS_ENDPOINT)).json();
         let meta = result.meta;
         let mods = result.mods as Mod[];
 
         if(meta.pages > 1) {
             for(let i = 2; i <= meta.pages; i++) {
-                let pageResult = await (await fetch(`${MODS_ENDPOINT}&page=${i}`)).json();
-                mods = mods.concat(pageResult.mods);
+                try {
+                    processName.set(`Getting mod page ${i}/${meta.pages}`);
+                    let pageResult = await (await fetch(`${MODS_ENDPOINT}&page=${i}`)).json();
+                    mods = mods.concat(pageResult.mods);
+                } catch (error) {
+                    showMessageBox("Error", `Failed to load mods page ${i}: ${error}!`);
+                    break;
+                }
             }
         }
 
@@ -119,16 +126,20 @@ export class ModDatabase {
     public static async refreshAll(forceRefresh: boolean): Promise<void> {
 
         // making sure the mods directory exists
+        processName.set("Checking mods directory");
         await getModsDir();
 
+        processName.set("Retrieving mods");
         if(forceRefresh) {
             await this.loadMods();
         } else {
             await this.loadModsIfEmpty();
         }
         
+        processName.set("Checking installed mods");
         await this.loadInstalledMods();
 
+        processName.set("Updating mod list");
         this.mods.forEach(mod => {
             let installedMod = this.installedMods.find(installedMod => installedMod.manifest.id === mod.mod_id);
             mod.isInstalled = installedMod !== undefined;
