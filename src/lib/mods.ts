@@ -1,5 +1,5 @@
 import { fs, path} from '@tauri-apps/api'
-import { getDirectoryPath, getModsDir, processName } from './store';
+import { getDirectoryPath, getModsDir, processName, processProgress } from './store';
 import { downloadAndInstall, showMessageBox } from './utils';
 
 export type Mod = {
@@ -67,6 +67,7 @@ export class ModDatabase {
 
     public static async loadMods(): Promise<void> {
         processName.set("Getting initial mod page");
+        processProgress.set(0);
         let result = await (await fetch(MODS_ENDPOINT)).json();
         let meta = result.meta;
         let mods = result.mods as Mod[];
@@ -77,6 +78,7 @@ export class ModDatabase {
                     processName.set(`Getting mod page ${i}/${meta.pages}`);
                     let pageResult = await (await fetch(`${MODS_ENDPOINT}&page=${i}`)).json();
                     mods = mods.concat(pageResult.mods);
+                    processProgress.set(i / meta.pages * 100);
                 } catch (error) {
                     showMessageBox("Error", `Failed to load mods page ${i}: ${error}!`);
                     break;
