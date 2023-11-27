@@ -119,6 +119,9 @@ export class ModDatabase {
             let file = files[i];
             if(file.name?.endsWith(".dll") || file.name?.endsWith(".disabled")){
                 let isEnabled = file.name?.endsWith(".dll");
+                let folderName = file.path.replace(".dll", "").replace(".disabled", "");
+                if(!(await fs.exists(await path.join(modPath, folderName))))
+                 continue;
                 let mod = await this.initInstalledMod(file.path.replace(".dll", "").replace(".disabled", ""), isEnabled);
                 this.installedMods.push(mod);
             }
