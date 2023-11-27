@@ -10,8 +10,10 @@
     export let mod: Mod;
     export let isGrid: boolean = false;
 
-    onMount( async () => {
-      //await refresh();
+    let isLibrary = false;
+
+    onMount(async () => {
+      isLibrary = mod.type == "Library";
     });
 
     async function updateStatus() {
@@ -67,6 +69,10 @@
 
     async function refresh() {
       mod = mod;
+      if(mod)
+      {
+        isLibrary = mod.type == "Library";
+      }
       //installedMod = ModDatabase.getInstalledMod(mod.mod_id);
       //isModInstalled = installedMod !== undefined;
 
@@ -80,7 +86,7 @@
   <div class="mod-card-horizontal">
     <img class="cover-img" src="{mod.thumbnail_url}" />
     <div class="vertical">
-      {#if mod.isInstalled && !isGrid}
+      {#if mod.isInstalled && !isLibrary && !isGrid}
         {#if mod.installedMod?.isEnabled}
           <button class="toggle-button install" on:click={disableMod}>Enabled</button>
         {:else}
@@ -94,7 +100,7 @@
     </div>
   </div>
 
-  {#if mod.isInstalled && isGrid}
+  {#if mod.isInstalled && !isLibrary && isGrid}
     {#if mod.installedMod?.isEnabled}
       <button class="toggle-button grid-toggle-button install" on:click={disableMod}>Enabled</button>
     {:else}

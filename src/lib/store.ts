@@ -22,3 +22,12 @@ export async function getModsDir(): Promise<string> {
 
     return modsDir;
 }
+
+export async function getLibsDir(): Promise<string> {
+    let modsDir = await path.join(await getDirectoryPath(), "Libs");
+    if(!await fs.exists(modsDir)) {
+        await fs.createDir(modsDir);
+    }
+
+    return modsDir;
+}

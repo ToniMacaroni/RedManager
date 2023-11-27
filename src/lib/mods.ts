@@ -1,5 +1,5 @@
 import { fs, path} from '@tauri-apps/api'
-import { getDirectoryPath, getModsDir, processName, processProgress } from './store';
+import { getDirectoryPath, getLibsDir, getModsDir, processName, processProgress } from './store';
 import { downloadAndInstall, showMessageBox } from './utils';
 
 export type Mod = {
@@ -15,6 +15,7 @@ export type Mod = {
     thumbnail_url: string;
     latest_version: string;
     time_ago: string;
+    type: string;
 
     isInstalled: boolean;
     installedMod?: InstalledMod;
@@ -33,10 +34,11 @@ export type ModManifest = {
     id: string;
     author: string;
     version: string;
+    type: string;
 }
 
 export type InstalledMod = {
-    dllName: string;
+    modName: string;
     isEnabled: boolean;
     manifest: ModManifest;
 }
@@ -99,14 +101,14 @@ export class ModDatabase {
         window.open(`https://sotf-mods.com/mods/${mod.user_slug}/${mod.slug}`);
     }
 
-    public static async initInstalledMod(dllPath: string, isEnabled: boolean): Promise<InstalledMod> {
-        let modManifestPath = await path.join(dllPath, "manifest.json");
+    public static async initInstalledMod(folderPath: string, isEnabled: boolean): Promise<InstalledMod> {
+        let modManifestPath = await path.join(folderPath, "manifest.json");
         let modManifest = await fs.readTextFile(modManifestPath);
         let manifest = JSON.parse(modManifest);
         return {
             manifest: manifest,
             isEnabled: isEnabled,
-            dllName: await path.basename(dllPath)
+            modName: await path.basename(folderPath)
         }
     }
 
@@ -114,15 +116,26 @@ export class ModDatabase {
         this.installedMods = [];
 
         let modPath = await path.join(await getDirectoryPath(), "Mods");
+        let libPath = await path.join(await getDirectoryPath(), "Libs");
         let files = await fs.readDir(modPath);
+        files = files.concat(await fs.readDir(libPath));
+
         for (let i = 0; i < files.length; i++) {
             let file = files[i];
             if(file.name?.endsWith(".dll") || file.name?.endsWith(".disabled")){
                 let isEnabled = file.name?.endsWith(".dll");
-                let folderName = file.path.replace(".dll", "").replace(".disabled", "");
-                if(!(await fs.exists(await path.join(modPath, folderName))))
-                 continue;
-                let mod = await this.initInstalledMod(file.path.replace(".dll", "").replace(".disabled", ""), isEnabled);
+                let folderName = file.name?.replace(".dll", "").replace(".disabled", "");
+                let folderPath = await path.join(await path.dirname(file.path), folderName);
+
+                console.log("managed mod", folderName, folderPath);
+
+                if(!(await fs.exists(folderPath)))
+                {
+                    console.log("folder does not exist for mod", folderName);
+                    continue;
+                }
+
+                let mod = await this.initInstalledMod(folderPath, isEnabled);
                 this.installedMods.push(mod);
             }
         }
@@ -130,9 +143,10 @@ export class ModDatabase {
 
     public static async refreshAll(forceRefresh: boolean): Promise<void> {
 
-        // making sure the mods directory exists
+        // making sure the mods and libs directory exists
         processName.set("Checking mods directory");
         await getModsDir();
+        await getLibsDir();
 
         processName.set("Retrieving mods");
         if(forceRefresh) {
@@ -150,24 +164,37 @@ export class ModDatabase {
             mod.isInstalled = installedMod !== undefined;
             mod.installedMod = installedMod;
         });
+
+        this.installedMods.forEach(installedMod => {
+            console.log(installedMod);
+        });
     }
 
     public static getInstalledMod(modId: string): InstalledMod | undefined {
-        return this.installedMods.find(mod => mod.dllName === modId);
+        return this.installedMods.find(mod => mod.modName === modId);
     }
 
     public static async installMod(mod: Mod): Promise<void> {
-        let modPath = await getDirectoryPath();
+        let gamePath = await getDirectoryPath();
         let modUrl = `https://sotf-mods.com/mods/${mod.user_slug}/${mod.slug}/download/${mod.latest_version}`;
-        await downloadAndInstall(modPath, modUrl, mod.name);
+        await downloadAndInstall(gamePath, modUrl, mod.name);
 
         await this.refreshAll(false);
     }
 
+    private static async getPathsForMod(mod: InstalledMod): Promise<string[]> {
+        let gamePath = await getDirectoryPath();
+
+        let subFolder = mod.manifest.type == "Mod" ? "Mods" : "Libs";
+        let modDllPath = await path.join(gamePath, subFolder, mod.modName + (mod.isEnabled ? ".dll" : ".disabled"));
+        let modFolder = await path.join(gamePath, subFolder, mod.modName);
+
+        return [modDllPath, modFolder];
+    }
+
     public static async uninstallMod(mod: InstalledMod): Promise<void> {
-        let modPath = await getDirectoryPath();
-        let modDllPath = await path.join(modPath, "Mods", mod.dllName + (mod.isEnabled ? ".dll" : ".disabled"));
-        let modFolder = await path.join(modPath, "Mods", mod.dllName);
+        let [modDllPath, modFolder] = await this.getPathsForMod(mod);
+
         if(await fs.exists(modDllPath)) await fs.removeFile(modDllPath);
         if(await fs.exists(modFolder)) await fs.removeDir(modFolder, { recursive: true });
 
@@ -176,8 +203,8 @@ export class ModDatabase {
 
     public static async toggleMod(mod: InstalledMod, shouldEnable: boolean): Promise<void> {
         let modPath = await getDirectoryPath();
-        let modDllPath = await path.join(modPath, "Mods", `${mod.dllName}.dll`);
-        let modDisabledPath = await path.join(modPath, "Mods", `${mod.dllName}.disabled`);
+        let modDllPath = await path.join(modPath, "Mods", `${mod.modName}.dll`);
+        let modDisabledPath = await path.join(modPath, "Mods", `${mod.modName}.disabled`);
 
         if(shouldEnable && (await fs.exists(modDisabledPath))) {
             await fs.renameFile(modDisabledPath, modDllPath);
