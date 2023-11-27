@@ -27,7 +27,7 @@
             processing.set(true);
             processName.set("Installing template...");
 
-            let cmd = new Command("dotnet-install-template", ["new", "install", "RedLoader.Templates"]);
+            let cmd = new Command("dotnet-install-template", ["new", "--install", "RedLoader.Templates"]);
             await cmd.execute();
         } catch (err) {
             console.log(err);

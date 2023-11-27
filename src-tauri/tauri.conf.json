@@ -24,7 +24,7 @@
           {
             "name": "dotnet-install-template",
             "cmd": "dotnet",
-            "args": ["new", "install", "RedLoader.Templates"]
+            "args": ["new", "--install", "RedLoader.Templates"]
           },
           {
             "name": "dotnet-create-project",
