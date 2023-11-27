@@ -16,6 +16,7 @@ export type Mod = {
     latest_version: string;
     time_ago: string;
     type: string;
+    dependencies: string[];
 
     isInstalled: boolean;
     installedMod?: InstalledMod;
@@ -127,8 +128,6 @@ export class ModDatabase {
                 let folderName = file.name?.replace(".dll", "").replace(".disabled", "");
                 let folderPath = await path.join(await path.dirname(file.path), folderName);
 
-                console.log("managed mod", folderName, folderPath);
-
                 if(!(await fs.exists(folderPath)))
                 {
                     console.log("folder does not exist for mod", folderName);
@@ -164,10 +163,6 @@ export class ModDatabase {
             mod.isInstalled = installedMod !== undefined;
             mod.installedMod = installedMod;
         });
-
-        this.installedMods.forEach(installedMod => {
-            console.log(installedMod);
-        });
     }
 
     public static getInstalledMod(modId: string): InstalledMod | undefined {
@@ -178,6 +173,18 @@ export class ModDatabase {
         let gamePath = await getDirectoryPath();
         let modUrl = `https://sotf-mods.com/mods/${mod.user_slug}/${mod.slug}/download/${mod.latest_version}`;
         await downloadAndInstall(gamePath, modUrl, mod.name);
+
+        for (const dependency of mod.dependencies) {
+            if(!dependency || dependency.length === 0) 
+                continue;
+            
+            await showMessageBox("Installing dependency", `Installing dependency ${dependency} for mod ${mod.name} (a refresh may be needed to show the dependency as installed)`);
+
+            let dependencyMod = this.mods.find(mod => mod.mod_id === dependency);
+            if(dependencyMod) {
+                await this.installMod(dependencyMod);
+            }
+        }
 
         await this.refreshAll(false);
     }
