@@ -1,16 +1,24 @@
 # RedManager
 
+<p align="center">
+    <a alt="total downloads">
+        <img src="https://img.shields.io/github/downloads/ToniMacaroni/RedManager/total" /></a>
+    <a href="https://github.com/ToniMacaroni/SaberFactory/releases" alt="latest version">
+        <img src="https://img.shields.io/github/v/tag/ToniMacaroni/RedManager?label=version" /></a>
+</p>
+
+---
+
 The RedManager is a general tool for installing/uninstalling/updating different features
 of the [RedLoader](https://github.com/ToniMacaroni/RedLoader) ecosystem as well as general Sons of the Forest modding features.
 
-Currently it (hopefully) does the job. But in the future it should be able to fully manage your mods and other content.
-
-## Getting Started
----
 **:arrow_forward:[DOWNLOAD FROM HERE](https://github.com/ToniMacaroni/RedManager/releases):arrow_backward:**  
 *This will take you to the releases page*
 
 ---
+
+## Getting Started
+
 You are probably here to install the RedLoader. To do that:
 1) Start the RedManager.
 2) The manager should automatically detect your path. If not, you can set it manually.

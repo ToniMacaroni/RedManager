@@ -30,8 +30,25 @@
     });
 
     async function filter() {
-        filtered = ModDatabase.getMods().filter((mod) => {
-            let passesTerm = mod.name.toLowerCase().includes(filterTerm.toLowerCase());
+        let modBucket: Mod[] = [];
+        if(filterTerm.startsWith("unapproved:"))
+        {
+            modBucket = await ModDatabase.getUnapprovedMods();
+        }
+        else if(filterTerm.startsWith("nsfw:"))
+        {
+            modBucket = await ModDatabase.getNsfwMods();
+        }
+        else
+        {
+            modBucket = await ModDatabase.getMods();
+        }
+
+        let split =  filterTerm.split(":");
+        let term = split[split.length - 1];
+
+        filtered = modBucket.filter((mod) => {
+            let passesTerm = mod.name.toLowerCase().includes(term.toLowerCase());
             let passesScope = (onlineSelected && !mod.isInstalled) || (installedSelected && mod.isInstalled);
             return passesTerm && passesScope;
         });
@@ -98,6 +115,7 @@
 
     .cat-btn-selected {
         background-color: #111;
+        color: #659cf0;
     }
 
     .no-corner {

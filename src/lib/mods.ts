@@ -1,4 +1,4 @@
-import { fs, path} from '@tauri-apps/api'
+import { app, fs, path} from '@tauri-apps/api'
 import { getDirectoryPath, getLibsDir, getModsDir, processName, processProgress } from './store';
 import { downloadAndInstall, showMessageBox } from './utils';
 
@@ -31,6 +31,11 @@ type RequestMeta = {
     total: number;
 }
 
+type EndpointResponse = {
+    meta: RequestMeta;
+    mods: Mod[];
+}
+
 export type ModManifest = {
     id: string;
     author: string;
@@ -48,30 +53,29 @@ export type ModList = {
     mods: any[];
 }
 
+export enum Sorting {
+    newest = "newest",
+}
+
 const ENDPOINT = "https://api.sotf-mods.com/api/";
-const MODS_ENDPOINT = `${ENDPOINT}mods?&approved=true&orderby=newest`;
 
 export class ModDatabase {
 
     private static mods: Mod[] = [];
+    private static unapprovedMods: Mod[] | null;
+    private static nsfwMods: Mod[] | null;
     private static installedMods: InstalledMod[] = [];
 
-    public static getMods(): Mod[] {
-        return this.mods;
+    private static async fetchMods(page: number, sorting: Sorting = Sorting.newest, approved: boolean = true, nsfw: boolean = false): Promise<EndpointResponse> {
+        let url = `${ENDPOINT}mods?&approved=${approved}&orderby=${sorting}&page=${page}&nsfw=${nsfw}`;
+        let result = await fetch(url);
+        return await result.json();
     }
 
-    // public static getOnlyInstalledMods(): Mod[] {
-    //     return this.mods.filter(mod => this.installedMods.find(installedMod => installedMod.manifest.id === mod.mod_id));
-    // }
-
-    // public static getOnlyOnlineMods(): Mod[] {
-    //     return this.mods.filter(mod => !this.installedMods.find(installedMod => installedMod.manifest.id === mod.mod_id));
-    // }
-
-    public static async loadMods(): Promise<void> {
+    public static async fetchAllMods(sorting: Sorting = Sorting.newest, approved: boolean = true, nsfw: boolean = false): Promise<Mod[]> {
         processName.set("Getting initial mod page");
         processProgress.set(0);
-        let result = await (await fetch(MODS_ENDPOINT)).json();
+        let result = await this.fetchMods(1, sorting, approved, nsfw);
         let meta = result.meta;
         let mods = result.mods as Mod[];
 
@@ -79,7 +83,7 @@ export class ModDatabase {
             for(let i = 2; i <= meta.pages; i++) {
                 try {
                     processName.set(`Getting mod page ${i}/${meta.pages}`);
-                    let pageResult = await (await fetch(`${MODS_ENDPOINT}&page=${i}`)).json();
+                    let pageResult = await this.fetchMods(i, sorting, approved, nsfw);
                     mods = mods.concat(pageResult.mods);
                     processProgress.set(i / meta.pages * 100);
                 } catch (error) {
@@ -89,12 +93,34 @@ export class ModDatabase {
             }
         }
 
-        this.mods = mods;
+        return mods;
     }
 
-    public static async loadModsIfEmpty(): Promise<void> {
-        if (!this.mods || this.mods.length === 0) {
-            await this.loadMods();
+    public static getMods(): Mod[] {
+        return this.mods;
+    }
+
+    public static async getUnapprovedMods(force: boolean = false): Promise<Mod[]> {
+        if(!this.unapprovedMods || this.unapprovedMods.length === 0 || force) {
+            let mods = await this.fetchAllMods(Sorting.newest, false);
+            this.unapprovedMods = mods;
+        }
+
+        return this.unapprovedMods;
+    }
+
+    public static async getNsfwMods(force: boolean = false): Promise<Mod[]> {
+        if(!this.nsfwMods || this.nsfwMods.length === 0 || force) {
+            let mods = await this.fetchAllMods(Sorting.newest, true, true);
+            this.nsfwMods = mods;
+        }
+
+        return this.nsfwMods;
+    }
+
+    public static async loadMods(force: boolean = false): Promise<void> {
+        if (!this.mods || this.mods.length === 0 || force) {
+            this.mods = await this.fetchAllMods();
         }
     }
 
@@ -102,14 +128,19 @@ export class ModDatabase {
         window.open(`https://sotf-mods.com/mods/${mod.user_slug}/${mod.slug}`);
     }
 
-    public static async initInstalledMod(folderPath: string, isEnabled: boolean): Promise<InstalledMod> {
-        let modManifestPath = await path.join(folderPath, "manifest.json");
-        let modManifest = await fs.readTextFile(modManifestPath);
-        let manifest = JSON.parse(modManifest);
-        return {
-            manifest: manifest,
-            isEnabled: isEnabled,
-            modName: await path.basename(folderPath)
+    private static async initInstalledMod(folderPath: string, isEnabled: boolean): Promise<InstalledMod | null> {
+        try {
+            let modManifestPath = await path.join(folderPath, "manifest.json");
+            let modManifest = await fs.readTextFile(modManifestPath);
+            let manifest = JSON.parse(modManifest);
+            return {
+                manifest: manifest,
+                isEnabled: isEnabled,
+                modName: await path.basename(folderPath)
+            }
+        } catch (error) {
+            console.log(`failed to load mod ${await path.basename(folderPath)}`, error);
+            return null;
         }
     }
 
@@ -135,7 +166,8 @@ export class ModDatabase {
                 }
 
                 let mod = await this.initInstalledMod(folderPath, isEnabled);
-                this.installedMods.push(mod);
+                if(mod)
+                    this.installedMods.push(mod);
             }
         }
     }
@@ -148,11 +180,7 @@ export class ModDatabase {
         await getLibsDir();
 
         processName.set("Retrieving mods");
-        if(forceRefresh) {
-            await this.loadMods();
-        } else {
-            await this.loadModsIfEmpty();
-        }
+        await this.loadMods(forceRefresh);
         
         processName.set("Checking installed mods");
         await this.loadInstalledMods();

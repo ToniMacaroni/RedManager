@@ -5,6 +5,7 @@
     import { debugInstaller, loaderFeature, bieFeature, melonFeature } from "../lib/featureInstaller";
     import { gameExePath, isPathValid, isDotnetInstalled, getDirectoryPath } from "../lib/store";
     import { get } from "svelte/store";
+    import redLogo from "/redlogo.png";
 
     let features = [bieFeature, melonFeature, loaderFeature];
 
@@ -18,7 +19,7 @@
 </script>
 
 <div class="column">
-    <center><a href="https://github.com/ToniMacaroni/RedLoader" target="_blank"><img class="big-logo" src="https://raw.githubusercontent.com/ToniMacaroni/SonsModLoader/master/Resources/redlogo.png" alt="Red" width="300"/></a></center>
+    <center><a href="https://github.com/ToniMacaroni/RedLoader" target="_blank"><img class="big-logo" src={redLogo} alt="Red" width="300"/></a></center>
     <br>
     <PathSelector />
     {#if $isPathValid}
