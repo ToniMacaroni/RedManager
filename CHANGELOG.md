@@ -1,4 +1,0 @@
-- Fix malformed manifest.json files resulting in infinite mod loading
-- Add more utilities to main screen
-- Embed redloader logo in executable for faster loading and offline use
-- Some visual improvements
