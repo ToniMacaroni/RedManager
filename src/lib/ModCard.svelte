@@ -21,7 +21,11 @@
     }
 
     async function update() {
-
+      if (!mod.installedMod) {
+        return;
+      }
+      await uninstall();
+      await install();
     }
 
     async function uninstall() {
@@ -80,7 +84,7 @@
     }
 </script>
 
-<div class="feature-container description">
+<div class="feature-container description {isGrid?'grid-thing':''}">
   <span class="mod-title">{mod.name} (<a on:click={() => ModDatabase.openModPage(mod)} class="site-link">view on site</a>)</span>
   <span class="description-content header-desc">{mod.short_description}</span>
   <div class="mod-card-horizontal">
@@ -109,7 +113,7 @@
   {/if}
 
   <div class="bottom-container">
-    <StatusButton isUpdateAvailable={false} isModInstalled={mod.isInstalled} update={update} uninstall={uninstall} install={install} />
+    <StatusButton isUpdateAvailable={mod.hasUpdate} isModInstalled={mod.isInstalled} update={update} uninstall={uninstall} install={install} />
   </div>
 </div>
 
@@ -195,6 +199,7 @@
     position: absolute;
     bottom: 1.4em;
     left: 1em;
+    bottom: 7em;
   }
 
   .toggle-button {
@@ -205,5 +210,9 @@
     font-weight: 400;
     background-color: rgb(25, 25, 25);
     align-self: flex-start;
+  }
+
+  .grid-thing {
+    max-height: 25em;
   }
 </style>

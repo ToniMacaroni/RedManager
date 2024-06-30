@@ -18,8 +18,8 @@
   let tabs = [
         { label: "Main", component: Page1 },
         { label: "Mods", component: Page2 },
-        { label: "Extras", component: Page3 },
-        { label: "Modding", component: Page4 },
+        // { label: "Extras", component: Page3 },
+        { label: "Mod Creation", component: Page4 },
     ];
 
   let activeTabComponent = tabs[0].component;
@@ -59,6 +59,8 @@
     catch (err) {
       console.log(err);
     }
+
+    document.addEventListener('contextmenu', event => event.preventDefault());
   })
 </script>
 

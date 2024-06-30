@@ -20,6 +20,7 @@ export type Mod = {
 
     isInstalled: boolean;
     installedMod?: InstalledMod;
+    hasUpdate: boolean;
 }
 
 type RequestMeta = {
@@ -190,6 +191,7 @@ export class ModDatabase {
             let installedMod = this.installedMods.find(installedMod => installedMod.manifest.id === mod.mod_id);
             mod.isInstalled = installedMod !== undefined;
             mod.installedMod = installedMod;
+            mod.hasUpdate = mod.isInstalled && installedMod?.manifest.version !== mod.latest_version;
         });
     }
 

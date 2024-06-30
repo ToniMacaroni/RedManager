@@ -5,6 +5,8 @@
     import { gameExePath } from "../lib/store";
     import { dialog, path } from "@tauri-apps/api";
     import { processing, processName } from "../lib/store";
+    import FeatureList from "../lib/FeatureList.svelte";
+    import { ueFeature } from "../lib/featureInstaller";
 
     $: isTemplateInstalled = false;
     $: modName = "MyMod";
@@ -117,6 +119,8 @@
             <button class="generic-button" on:click={createProject}>Create Project</button>
         </div>
     {/if}
+    <br />
+    <FeatureList features={[ueFeature]} />
 </div>
 
 <style>

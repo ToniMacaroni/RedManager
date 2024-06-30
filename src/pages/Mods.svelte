@@ -55,12 +55,18 @@
     }
 
     async function toggleOnline() {
-        onlineSelected = !onlineSelected;
+        // onlineSelected = !onlineSelected;
+
+        onlineSelected = true;
+        installedSelected = false;
         await filter();
     }
 
     async function toggleInstalled() {
-        installedSelected = !installedSelected;
+        // installedSelected = !installedSelected;
+
+        onlineSelected = false;
+        installedSelected = true;
         await filter();
     }
 
