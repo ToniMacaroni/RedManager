@@ -58,7 +58,7 @@ export enum Sorting {
     newest = "newest",
 }
 
-const ENDPOINT = "https://sotf-mods.com/api/";
+const ENDPOINT = "https://api.sotf-mods.com/api/";
 
 export class ModDatabase {
 
