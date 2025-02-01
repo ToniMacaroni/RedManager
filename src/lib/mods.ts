@@ -34,7 +34,7 @@ type RequestMeta = {
 
 type EndpointResponse = {
     meta: RequestMeta;
-    mods: Mod[];
+    data: Mod[];
 }
 
 export type ModManifest = {
@@ -78,14 +78,14 @@ export class ModDatabase {
         processProgress.set(0);
         let result = await this.fetchMods(1, sorting, approved, nsfw);
         let meta = result.meta;
-        let mods = result.mods as Mod[];
+        let mods = result.data as Mod[];
 
         if(meta.pages > 1) {
             for(let i = 2; i <= meta.pages; i++) {
                 try {
                     processName.set(`Getting mod page ${i}/${meta.pages}`);
                     let pageResult = await this.fetchMods(i, sorting, approved, nsfw);
-                    mods = mods.concat(pageResult.mods);
+                    mods = mods.concat(pageResult.data);
                     processProgress.set(i / meta.pages * 100);
                 } catch (error) {
                     showMessageBox("Error", `Failed to load mods page ${i}: ${error}!`);
