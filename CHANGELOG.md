@@ -1,0 +1,7 @@
+- Added infinite scroll instead of pre-fetching all mods.
+- Use sotf-mods api for searching with debounce.
+- Added icons for navigation bar.
+- UI overhaul.
+- Fixed last updated indicator.
+- Fixed image covers not showing.
+- Fixed wrong image covers for mods after searching.

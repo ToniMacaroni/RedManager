@@ -1,5 +1,5 @@
 [package]
-name = "SFModManager"
+name = "RedModManager"
 version = "0.0.0"
 description = "An installer and mod manager for the RedLoader mod loader."
 authors = ["Toni Macaroni"]

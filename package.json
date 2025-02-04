@@ -1,7 +1,7 @@
 {
   "name": "RedModManager",
   "private": true,
-  "version": "1.1.8",
+  "version": "1.1.9",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,11 +12,14 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^1.4.0",
+    "@types/lodash": "^4.17.15",
+    "lodash": "^4.17.21",
     "semver": "^7.5.4",
     "tauri-plugin-upload-api": "github:tauri-apps/tauri-plugin-upload#v1"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^2.4.2",
+    "@iconify/json": "^2.2.302",
+    "@sveltejs/vite-plugin-svelte": "^2.5.3",
     "@tauri-apps/cli": "^1.4.0",
     "@tsconfig/svelte": "^5.0.0",
     "@types/semver": "^7.5.0",
@@ -25,6 +28,7 @@
     "svelte-preprocess": "^5.0.0",
     "tslib": "^2.6.0",
     "typescript": "^5.0.2",
+    "unplugin-icons": "^22.0.0",
     "vite": "^4.4.4"
   }
 }

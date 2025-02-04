@@ -2,7 +2,7 @@
   import { processProgress, processing } from './store';
   import { InstallMode, type FeatureInstaller } from "./featureInstaller";
     import { GithubInfo, redLoaderInfo } from './githubInfo';
-    import { onMount } from 'svelte';
+    import { onMount, createEventDispatcher } from 'svelte';
     import { ModDatabase, type Mod, type InstalledMod } from './mods';
     import StatusButton from './StatusButton.svelte';
     import { downloadAndInstall } from './utils';
@@ -12,13 +12,11 @@
 
     let isLibrary = false;
 
+    const dispatch = createEventDispatcher();
+
     onMount(async () => {
       isLibrary = mod.type == "Library";
     });
-
-    async function updateStatus() {
-
-    }
 
     async function update() {
       if (!mod.installedMod) {
@@ -26,6 +24,8 @@
       }
       await uninstall();
       await install();
+
+      dispatch("refreshMods");
     }
 
     async function uninstall() {
@@ -41,6 +41,8 @@
       await refresh();
 
       processing.set(false);
+
+      dispatch("refreshMods");
     }
 
     async function install() {
@@ -51,6 +53,8 @@
       await refresh();
 
       processing.set(false);
+
+      dispatch("refreshMods");
     }
 
     async function enableMod() {
@@ -82,13 +86,22 @@
 
       //isUpdateAvailable = false;
     }
+
+    function formatDate(dateString: string) {
+      const date = new Date(dateString);
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+    };
 </script>
 
 <div class="feature-container description {isGrid?'grid-thing':''}">
   <span class="mod-title">{mod.name} (<a on:click={() => ModDatabase.openModPage(mod)} class="site-link">view on site</a>)</span>
-  <span class="description-content header-desc">{mod.short_description}</span>
+  <span class="description-content header-desc">{mod.short_description?mod.short_description:""}</span>
   <div class="mod-card-horizontal">
-    <img class="cover-img" src="{mod.thumbnail_url}" />
+    <img class="cover-img" src="{mod.imageUrl?mod.imageUrl:"https://placehold.co/600x400/252525/FFF?text=No+Image"}" />
     <div class="vertical">
       {#if mod.isInstalled && !isLibrary && !isGrid}
         {#if mod.installedMod?.isEnabled}
@@ -99,8 +112,8 @@
       {/if}
       <span class="description-content">Author: <b class="update">{mod.user_name}</b></span>
       <span class="description-content">Version: <b class="update">{mod.latest_version}</b></span>
-      <span class="description-content">Updated: <b class="update">{mod.time_ago}</b></span>
-      <span class="description-content">Category: <b class="update">{mod.category_name}</b></span>
+      <span class="description-content">Updated: <b class="update">{mod.lastReleasedAt?formatDate(mod.lastReleasedAt):"-"}</b></span>
+      <span class="description-content">Category: <b class="update">{mod.category_name?mod.category_name:"-"}</b></span>
     </div>
   </div>
 
@@ -155,7 +168,12 @@
     padding: 10px;
     /* border-radius: 10px; */
     /* border: 2px solid #414141; */
-    border-bottom: 2px solid #414141;
+    /* border-bottom: 2px solid #414141; */
+
+    border-radius: 10px;
+    border-bottom: 2px solid #333;
+    background-color: #121212;
+
     margin-bottom: 20px;
     margin-right: 0.4em;
   }

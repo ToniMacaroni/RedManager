@@ -135,6 +135,12 @@ button {
   cursor: pointer;
 }
 
+.tab > svg {
+  vertical-align: middle;
+  padding-bottom: 4px;
+  font-size: 1.3em;
+}
+
 .tab:hover {
   color: #ffffff;
   background: #1b1b1b;

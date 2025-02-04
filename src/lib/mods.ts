@@ -12,9 +12,9 @@ export type Mod = {
     category_slug: string;
     user_name: string;
     user_slug: string;
-    thumbnail_url: string;
+    imageUrl: string;
     latest_version: string;
-    time_ago: string;
+    lastReleasedAt: string;
     type: string;
     dependencies: string[];
 
@@ -67,10 +67,32 @@ export class ModDatabase {
     private static nsfwMods: Mod[] | null;
     private static installedMods: InstalledMod[] = [];
 
-    private static async fetchMods(page: number, sorting: Sorting = Sorting.newest, approved: boolean = true, nsfw: boolean = false): Promise<EndpointResponse> {
+    public static async fetchMods(
+            page: number, 
+            sorting: Sorting = Sorting.newest,
+            approved: boolean = true, 
+            nsfw: boolean = false,
+            searchTerm: string | null = null): Promise<EndpointResponse> {
+
         let url = `${ENDPOINT}mods?&approved=${approved}&orderby=${sorting}&page=${page}&nsfw=${nsfw}`;
+        if(searchTerm) searchTerm = searchTerm.trim();
+        if(searchTerm && searchTerm !== "")
+        {
+            url += "&search=" + searchTerm;
+        }
+
         let result = await fetch(url);
         return await result.json();
+    }
+
+    public static async fetchMod(id: string): Promise<Mod | null> {
+        let result = await fetch("https://api.sotf-mods.com/api/mods/" + id);
+        let resultData = await result.json();
+        if(resultData.status === false){
+            return null;
+        }
+
+        return resultData.data;
     }
 
     public static async fetchAllMods(sorting: Sorting = Sorting.newest, approved: boolean = true, nsfw: boolean = false): Promise<Mod[]> {
@@ -99,6 +121,27 @@ export class ModDatabase {
 
     public static getMods(): Mod[] {
         return this.mods;
+    }
+
+    public static async getInstalledMods(): Promise<Mod[]> {
+        return await Promise.all(this.installedMods.map(async m=>{
+            let remoteMod = await this.fetchMod(m.modName);
+            if( remoteMod ) {
+                remoteMod.isInstalled = true;
+                remoteMod.installedMod = m;
+                return remoteMod;
+            }
+
+
+            return {
+                name: m.modName,
+                mod_id: m.manifest.id,
+                user_name: m.manifest.author,
+                latest_version: m.manifest.version,
+                isInstalled: true,
+                installedMod: m
+            } as Mod
+        }));
     }
 
     public static async getUnapprovedMods(force: boolean = false): Promise<Mod[]> {
@@ -195,6 +238,29 @@ export class ModDatabase {
         });
     }
 
+    public static async initDatabase(): Promise<void> {
+        if (this.installedMods.length !== 0) {
+            return;
+        }
+
+        await this.loadInstalledMods();
+    }
+
+    public static initModList(modList: Mod[]): void {
+        modList.forEach(mod => {
+            let installedMod = this.installedMods.find(installedMod => installedMod.manifest.id === mod.mod_id);
+            mod.isInstalled = installedMod !== undefined;
+            mod.installedMod = installedMod;
+            mod.hasUpdate = mod.isInstalled && installedMod?.manifest.version !== mod.latest_version;
+        });
+    }
+
+    public static async loadPage(page: number): Promise<void> {
+        await this.initDatabase();
+        let res = await this.fetchMods(page);
+        
+    }
+
     public static getInstalledMod(modId: string): InstalledMod | undefined {
         return this.installedMods.find(mod => mod.modName === modId);
     }
@@ -210,13 +276,13 @@ export class ModDatabase {
             
             await showMessageBox("Installing dependency", `Installing dependency ${dependency} for mod ${mod.name} (a refresh may be needed to show the dependency as installed)`);
 
-            let dependencyMod = this.mods.find(mod => mod.mod_id === dependency);
+            let dependencyMod = await this.fetchMod(dependency);
             if(dependencyMod) {
                 await this.installMod(dependencyMod);
             }
         }
 
-        await this.refreshAll(false);
+        //await this.refreshAll(false);
     }
 
     private static async getPathsForMod(mod: InstalledMod): Promise<string[]> {
@@ -235,7 +301,7 @@ export class ModDatabase {
         if(await fs.exists(modDllPath)) await fs.removeFile(modDllPath);
         if(await fs.exists(modFolder)) await fs.removeDir(modFolder, { recursive: true });
 
-        await this.refreshAll(false);
+        //await this.refreshAll(false);
     }
 
     public static async toggleMod(mod: InstalledMod, shouldEnable: boolean): Promise<void> {
