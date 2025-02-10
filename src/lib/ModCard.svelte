@@ -11,6 +11,7 @@
     export let isGrid: boolean = false;
 
     let isLibrary = false;
+    let isImageLoaded = false;
 
     const dispatch = createEventDispatcher();
 
@@ -95,13 +96,33 @@
         day: "2-digit",
       });
     };
+    
+    function onImageLoad() {
+      isImageLoaded = true;
+    }
 </script>
 
 <div class="feature-container description {isGrid?'grid-thing':''}">
   <span class="mod-title">{mod.name} (<a on:click={() => ModDatabase.openModPage(mod)} class="site-link">view on site</a>)</span>
-  <span class="description-content header-desc">{mod.short_description?mod.short_description:""}</span>
+  <span class="description-content header-desc">{mod.shortDescription?mod.shortDescription:""}</span>
   <div class="mod-card-horizontal">
-    <img class="cover-img" src="{mod.imageUrl?mod.imageUrl:"https://placehold.co/600x400/252525/FFF?text=No+Image"}" />
+    <!-- <img class="cover-img" src="{mod.imageUrl?mod.imageUrl:"https://placehold.co/600x400/252525/FFF?text=No+Image"}" /> -->
+    <div class="image-container">
+      <img
+        class="cover-img main-image"
+        class:isImageLoaded={!isImageLoaded}
+        src="https://placehold.co/600x400/252525/FFF?text=Loading"
+        alt="Loading..."
+      />
+      
+      <img
+        class="cover-img main-image"
+        class:isImageLoaded
+        src={mod.imageUrl?mod.imageUrl:"https://placehold.co/600x400/252525/FFF?text=No+Image"}
+        alt="Mod cover..."
+        on:load={onImageLoad}
+      />
+    </div>
     <div class="vertical">
       {#if mod.isInstalled && !isLibrary && !isGrid}
         {#if mod.installedMod?.isEnabled}
@@ -110,10 +131,10 @@
           <button class="toggle-button uninstall" on:click={enableMod}>Disabled</button>
         {/if}
       {/if}
-      <span class="description-content">Author: <b class="update">{mod.user_name}</b></span>
-      <span class="description-content">Version: <b class="update">{mod.latest_version}</b></span>
+      <span class="description-content">Author: <b class="update">{mod.user.name}</b></span>
+      <span class="description-content">Version: <b class="update">{mod.latestVersion}</b></span>
       <span class="description-content">Updated: <b class="update">{mod.lastReleasedAt?formatDate(mod.lastReleasedAt):"-"}</b></span>
-      <span class="description-content">Category: <b class="update">{mod.category_name?mod.category_name:"-"}</b></span>
+      <span class="description-content">Category: <b class="update">{mod.category?mod.category.name:"-"}</b></span>
     </div>
   </div>
 
@@ -206,13 +227,6 @@
     text-transform: lowercase;
   }
 
-  .cover-img {
-    width: 10px;
-    height: auto;
-    border-radius: 10px;
-    margin-bottom: 1em;
-  }
-
   .grid-toggle-button {
     position: absolute;
     bottom: 1.4em;
@@ -232,5 +246,32 @@
 
   .grid-thing {
     max-height: 25em;
+  }
+
+  .image-container {
+    position: relative;
+    width: 100%;
+    /* height: 12.5em; */
+    padding-bottom: 29%;
+    margin-bottom: 1em;
+  }
+  
+  .cover-img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 10px;
+    object-fit: cover;
+    transition: opacity 0.3s ease-in-out;
+  }
+  
+  .main-image {
+    opacity: 0;
+  }
+  
+  .main-image.isImageLoaded {
+    opacity: 1;
   }
 </style>

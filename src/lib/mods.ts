@@ -2,18 +2,30 @@ import { app, fs, path} from '@tauri-apps/api'
 import { getDirectoryPath, getLibsDir, getModsDir, processName, processProgress } from './store';
 import { downloadAndInstall, showMessageBox } from './utils';
 
+export type ModCategory = {
+    name: String;
+    slug: String;
+}
+
+export type ModAuthor = {
+    name: String;
+    slug: String;
+}
+
 export type Mod = {
     name: string;
     slug: string;
     mod_id: string;
-    short_description: string;
+    shortDescription: string;
     isApproved: boolean;
-    category_name: string;
-    category_slug: string;
-    user_name: string;
-    user_slug: string;
+    // category_name: string;
+    // category_slug: string;
+    category: ModCategory;
+    // user_name: string;
+    // user_slug: string;
+    user: ModAuthor;
     imageUrl: string;
-    latest_version: string;
+    latestVersion: string;
     lastReleasedAt: string;
     type: string;
     dependencies: string[];
@@ -133,11 +145,22 @@ export class ModDatabase {
             }
 
 
+            // return {
+            //     name: m.modName,
+            //     mod_id: m.manifest.id,
+            //     user_name: m.manifest.author,
+            //     latestVersion: m.manifest.version,
+            //     isInstalled: true,
+            //     installedMod: m
+            // } as Mod
             return {
                 name: m.modName,
                 mod_id: m.manifest.id,
-                user_name: m.manifest.author,
-                latest_version: m.manifest.version,
+                user: {
+                    name: m.manifest.author,
+                    slug: m.manifest.author
+                } as ModAuthor,
+                latestVersion: m.manifest.version,
                 isInstalled: true,
                 installedMod: m
             } as Mod
@@ -169,7 +192,7 @@ export class ModDatabase {
     }
 
     public static openModPage(mod: Mod): void {
-        window.open(`https://sotf-mods.com/mods/${mod.user_slug}/${mod.slug}`);
+        window.open(`https://sotf-mods.com/mods/${mod.user.slug}/${mod.slug}`);
     }
 
     private static async initInstalledMod(folderPath: string, isEnabled: boolean): Promise<InstalledMod | null> {
@@ -234,7 +257,7 @@ export class ModDatabase {
             let installedMod = this.installedMods.find(installedMod => installedMod.manifest.id === mod.mod_id);
             mod.isInstalled = installedMod !== undefined;
             mod.installedMod = installedMod;
-            mod.hasUpdate = mod.isInstalled && installedMod?.manifest.version !== mod.latest_version;
+            mod.hasUpdate = mod.isInstalled && installedMod?.manifest.version !== mod.latestVersion;
         });
     }
 
@@ -251,7 +274,7 @@ export class ModDatabase {
             let installedMod = this.installedMods.find(installedMod => installedMod.manifest.id === mod.mod_id);
             mod.isInstalled = installedMod !== undefined;
             mod.installedMod = installedMod;
-            mod.hasUpdate = mod.isInstalled && installedMod?.manifest.version !== mod.latest_version;
+            mod.hasUpdate = mod.isInstalled && installedMod?.manifest.version !== mod.latestVersion;
         });
     }
 
@@ -267,7 +290,7 @@ export class ModDatabase {
 
     public static async installMod(mod: Mod): Promise<void> {
         let gamePath = await getDirectoryPath();
-        let modUrl = `https://sotf-mods.com/mods/${mod.user_slug}/${mod.slug}/download/${mod.latest_version}`;
+        let modUrl = `https://sotf-mods.com/mods/${mod.user.slug}/${mod.slug}/download/${mod.latestVersion}`;
         await downloadAndInstall(gamePath, modUrl, mod.name);
 
         for (const dependency of mod.dependencies) {
