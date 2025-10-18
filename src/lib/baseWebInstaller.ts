@@ -2,9 +2,9 @@ import { BaseZipInstaller } from "./baseZipInstaller";
 import { redLoaderInfo } from "./githubInfo";
 import { getDirectoryPath, gameExePath, processName, processProgress } from "./store"
 import { get } from 'svelte/store'
-import { fs, http } from "@tauri-apps/api";
-import { TempFileCache } from "./TempFileCache";
-import { download } from "tauri-plugin-upload-api";
+import { invoke } from '@tauri-apps/api/tauri';
+import { listen } from '@tauri-apps/api/event';
+import { TempFileCache } from "./tempFileCache";
 
 
 export abstract class BaseWebInstaller extends BaseZipInstaller {
@@ -21,7 +21,9 @@ export abstract class BaseWebInstaller extends BaseZipInstaller {
     const exeDir = await getDirectoryPath();
 
     const selectedVersion = await redLoaderInfo.getLatest();
-    await this.newInstall(exeDir, selectedVersion);
+    if (selectedVersion) {
+      await this.newInstall(exeDir, selectedVersion);
+    }
   }
 
   protected abstract getDownloadUrl(version: string): Promise<string>;
@@ -43,26 +45,20 @@ export abstract class BaseWebInstaller extends BaseZipInstaller {
     console.log(`Downloading ${downloadUrl} to ${tempPath}`);
 
     try {
-      let downloadProgress = 0;
-      
-      await download(
-        downloadUrl,
-        tempPath,
-        (progress, total) => {
-          downloadProgress += progress;
-          processProgress.set(downloadProgress / total * 100);
-        }
-      );
+      // Set up progress listener
+      const unlisten = await listen('download-progress', (event) => {
+        const { progress } = event.payload as { progress: number };
+        processProgress.set(progress);
+      });
 
-      // let client = await http.getClient();
-      // const response = await client.get<Uint8Array>(downloadUrl, {
-      //   timeout: 30,
-      //   responseType: http.ResponseType.Binary,
-      // });
-    
-      // const binaryData = response.data;
-    
-      // await fs.writeBinaryFile(tempPath, binaryData);
+      // Start the download
+      await invoke('download_with_progress', {
+        url: downloadUrl,
+        filePath: tempPath
+      });
+
+      // Clean up listener
+      unlisten();
     } catch (error) {
       console.log(error);
       return;

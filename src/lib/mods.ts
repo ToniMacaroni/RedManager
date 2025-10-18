@@ -1,6 +1,14 @@
 import { app, fs, path} from '@tauri-apps/api'
+import { invoke } from '@tauri-apps/api/tauri';
 import { getDirectoryPath, getLibsDir, getModsDir, processName, processProgress } from './store';
 import { downloadAndInstall, showMessageBox } from './utils';
+
+type ModFileEntry = {
+    name: string;
+    path: string;
+    is_symlink: boolean;
+    target: string | null;
+}
 
 export type ModCategory = {
     name: String;
@@ -33,6 +41,7 @@ export type Mod = {
     isInstalled: boolean;
     installedMod?: InstalledMod;
     hasUpdate: boolean;
+    isUnknownSource?: boolean;
 }
 
 type RequestMeta = {
@@ -54,6 +63,9 @@ export type ModManifest = {
     author: string;
     version: string;
     type: string;
+    url?: string;
+    description?: string;
+    gameVersion?: string;
 }
 
 export type InstalledMod = {
@@ -141,28 +153,31 @@ export class ModDatabase {
             if( remoteMod ) {
                 remoteMod.isInstalled = true;
                 remoteMod.installedMod = m;
+                remoteMod.isUnknownSource = false;
                 return remoteMod;
             }
 
-
-            // return {
-            //     name: m.modName,
-            //     mod_id: m.manifest.id,
-            //     user_name: m.manifest.author,
-            //     latestVersion: m.manifest.version,
-            //     isInstalled: true,
-            //     installedMod: m
-            // } as Mod
+            // Mod not found on sotf-mods.com - create a fallback with unknown source flag
             return {
                 name: m.modName,
                 mod_id: m.manifest.id,
+                slug: '',
+                shortDescription: m.manifest.description || '',
+                isApproved: false,
+                category: { name: 'Unknown', slug: 'unknown' } as ModCategory,
                 user: {
                     name: m.manifest.author,
                     slug: m.manifest.author
                 } as ModAuthor,
+                imageUrl: '',
                 latestVersion: m.manifest.version,
+                lastReleasedAt: '',
+                type: m.manifest.type || 'Mod',
+                dependencies: [],
                 isInstalled: true,
-                installedMod: m
+                installedMod: m,
+                hasUpdate: false,
+                isUnknownSource: true
             } as Mod
         }));
     }
@@ -192,7 +207,29 @@ export class ModDatabase {
     }
 
     public static openModPage(mod: Mod): void {
-        window.open(`https://sotf-mods.com/mods/${mod.user.slug}/${mod.slug}`);
+        // Open the sotf-mods.com page if available
+        if (mod.user?.slug && mod.slug) {
+            window.open(`https://sotf-mods.com/mods/${mod.user.slug}/${mod.slug}`);
+        } else {
+            console.warn('Cannot open sotf-mods page: mod not found on sotf-mods.com', mod);
+        }
+    }
+
+    public static openModUrl(mod: Mod): void {
+        // Open the mod's custom URL from manifest if available
+        if (mod.installedMod?.manifest?.url && 
+            mod.installedMod.manifest.url !== '...' && 
+            mod.installedMod.manifest.url.trim() !== '') {
+            window.open(mod.installedMod.manifest.url);
+        } else {
+            console.warn('Cannot open mod URL: no URL in manifest', mod);
+        }
+    }
+
+    public static hasModUrl(mod: Mod): boolean {
+        return !!(mod.installedMod?.manifest?.url && 
+                  mod.installedMod.manifest.url !== '...' && 
+                  mod.installedMod.manifest.url.trim() !== '');
     }
 
     private static async initInstalledMod(folderPath: string, isEnabled: boolean): Promise<InstalledMod | null> {
@@ -216,15 +253,22 @@ export class ModDatabase {
 
         let modPath = await path.join(await getDirectoryPath(), "Mods");
         let libPath = await path.join(await getDirectoryPath(), "Libs");
-        let files = await fs.readDir(modPath);
-        files = files.concat(await fs.readDir(libPath));
+        
+        // Use symlink-aware scanning
+        let modFiles: ModFileEntry[] = await invoke('scan_mods_directory', { dirPath: modPath });
+        let libFiles: ModFileEntry[] = await invoke('scan_mods_directory', { dirPath: libPath });
+        let files = modFiles.concat(libFiles);
 
         for (let i = 0; i < files.length; i++) {
             let file = files[i];
+            
             if(file.name?.endsWith(".dll") || file.name?.endsWith(".disabled")){
                 let isEnabled = file.name?.endsWith(".dll");
                 let folderName = file.name?.replace(".dll", "").replace(".disabled", "");
-                let folderPath = await path.join(await path.dirname(file.path), folderName);
+                
+                // Use the actual path (resolves symlinks automatically if needed)
+                let basePath = await path.dirname(file.path);
+                let folderPath = await path.join(basePath, folderName);
 
                 if(!(await fs.exists(folderPath)))
                 {

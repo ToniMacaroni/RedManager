@@ -3,7 +3,7 @@ import { exists } from '@tauri-apps/api/fs';
 import { dialog } from '@tauri-apps/api';
 import { processName, processProgress } from './store';
 import { TempFileCache } from './tempFileCache';
-import { download } from 'tauri-plugin-upload-api';
+import { listen } from '@tauri-apps/api/event';
 
 export async function unzip(sourcePath: string, destinationPath: string) {
     try {
@@ -29,17 +29,20 @@ export async function downloadAndInstall(destination: string, downloadUrl: strin
     console.log(`Downloading ${downloadUrl} to ${tempPath}`);
 
     try {
-      let downloadProgress = 0;
-      
-      await download(
-        downloadUrl,
-        tempPath,
-        (progress, total) => {
-          downloadProgress += progress;
-          processProgress.set(downloadProgress / total * 100);
-        }
-      );
+      // Set up progress listener
+      const unlisten = await listen('download-progress', (event) => {
+        const { progress } = event.payload as { progress: number };
+        processProgress.set(progress);
+      });
 
+      // Start the download
+      await invoke('download_with_progress', {
+        url: downloadUrl,
+        filePath: tempPath
+      });
+
+      // Clean up listener
+      unlisten();
     } catch (error) {
       console.log(error);
       return;

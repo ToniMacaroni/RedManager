@@ -7,8 +7,8 @@
     "withGlobalTauri": false
   },
   "package": {
-    "productName": "RedModManager",
-    "version": "1.1.9"
+  "productName": "RedModManager",
+  "version": "1.2.1"
   },
   "tauri": {
     "allowlist": {
@@ -40,7 +40,7 @@
       },
       "fs": {
         "all": true,
-        "scope": ["**"]
+        "scope": ["**", "$CACHE/**"]
       },
       "dialog": {
         "all": true
@@ -50,7 +50,13 @@
       },
       "http": {
         "all": true,
-        "scope": ["https://github.com/*"]
+        "scope": [
+          "https://github.com/*",
+          "https://api.sotf-mods.com/*",
+          "https://sotf-mods.com/*",
+          "https://files.sotf-mods.com/*",
+          "https://placehold.co/*"
+        ]
       }
     },
     "bundle": {
@@ -70,8 +76,16 @@
         "fullscreen": false,
         "resizable": true,
         "title": "RedModManager",
-        "width": 800,
-        "height": 650
+        "width": 1400,
+        "height": 900,
+        "minWidth": 600,
+        "minHeight": 400,
+        "decorations": true,
+        "skipTaskbar": false,
+        "alwaysOnTop": false,
+        "center": true,
+        "x": null,
+        "y": null
       }
     ]
   }

@@ -5,6 +5,7 @@
     import { debugInstaller, loaderFeature, bieFeature, melonFeature } from "../lib/featureInstaller";
     import { gameExePath, isPathValid, isDotnetInstalled, getDirectoryPath } from "../lib/store";
     import { get } from "svelte/store";
+    import ImageCache from "../lib/imageCache";
     import redLogo from "/redlogo.png";
 
     let features = [bieFeature, melonFeature, loaderFeature];
@@ -16,6 +17,15 @@
     async function startGame() {
         await shell.open("steam://rungameid/1326470");
     }
+
+    async function clearImageCache() {
+        try {
+            await ImageCache.clearAllCache();
+            // Cache cleared silently
+        } catch (error) {
+            console.error('Failed to clear image cache:', error);
+        }
+    }
 </script>
 
 <div class="column">
@@ -26,6 +36,7 @@
         {#each features as feature}
             <InstallFeature feature={feature} />
         {/each}
+        <button class="tool-button cache-button" on:click={clearImageCache}>Clear Image Cache</button>
     {/if}
     <br>
     <br>
@@ -47,5 +58,17 @@
         color: #999;
         /* transition: background-color 0.25s; */
         /* color: #646cff; */
+    }
+
+    .cache-button {
+        background-color: #2a2a2a;
+        color: #24c8db;
+        border: 1px solid #24c8db;
+        transition: background-color 0.25s, border-color 0.25s;
+    }
+
+    .cache-button:hover {
+        background-color: #24c8db;
+        color: #1e1e1e;
     }
 </style>

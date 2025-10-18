@@ -1,7 +1,7 @@
 {
-  "name": "RedModManager",
+  "name": "red-mod-manager",
   "private": true,
-  "version": "1.1.9",
+  "version": "1.2.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,8 +14,7 @@
     "@tauri-apps/api": "^1.4.0",
     "@types/lodash": "^4.17.15",
     "lodash": "^4.17.21",
-    "semver": "^7.5.4",
-    "tauri-plugin-upload-api": "github:tauri-apps/tauri-plugin-upload#v1"
+    "semver": "^7.5.4"
   },
   "devDependencies": {
     "@iconify/json": "^2.2.302",

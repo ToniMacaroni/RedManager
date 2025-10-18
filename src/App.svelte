@@ -37,11 +37,11 @@
 
   let activeTabComponent = tabs[0].component;
 
-  function selectTab(tabComponent) {
+  function selectTab(tabComponent: any) {
     activeTabComponent = tabComponent;
   }
 
-  function handleKeyPress(event: KeyboardEvent, tabComponent) {
+  function handleKeyPress(event: KeyboardEvent, tabComponent: any) {
     if (event.key === "Enter" || event.key === " ") {
       selectTab(tabComponent);
     }
