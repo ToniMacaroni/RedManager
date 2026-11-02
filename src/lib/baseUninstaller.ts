@@ -1,4 +1,4 @@
-import { fs } from '@tauri-apps/api';
+import { fs, path } from "@tauri-apps/api";
 import { getDirectoryPath } from './store';
 
 export class BaseUninstaller {
@@ -6,7 +6,7 @@ export class BaseUninstaller {
     private filesToClear: string[];
     private name: string;
 
-    public overrideCheckFiles: string[] | null;
+    public overrideCheckFiles: string[] | null = null;
 
     constructor(
         foldersToClear: string[],
@@ -20,7 +20,7 @@ export class BaseUninstaller {
 
     protected async getFilePath(fileName: string): Promise<string> {
         const directoryPath = await getDirectoryPath();
-        return `${directoryPath}/${fileName}`;
+        return await path.join(directoryPath, fileName);
     }
 
     public get needsDialog(): boolean {

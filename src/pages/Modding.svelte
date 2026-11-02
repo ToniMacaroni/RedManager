@@ -1,155 +1,209 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { Command } from "@tauri-apps/api/shell";
-    import { get } from "svelte/store";
-    import { gameExePath } from "../lib/store";
-    import { dialog, path } from "@tauri-apps/api";
-    import { processing, processName } from "../lib/store";
+    import { dialog, fs, path, shell } from "@tauri-apps/api";
+    import { getDirectoryPath, isPathValid, notify, runTask } from "../lib/store";
     import FeatureList from "../lib/FeatureList.svelte";
     import { ueFeature } from "../lib/featureInstaller";
+    import UilPlusCircle from "~icons/uil/plus-circle";
+    import UilArrowCircleDown from "~icons/uil/arrow-circle-down";
+    import UilExclamationTriangle from "~icons/uil/exclamation-triangle";
+    import UilCheckCircle from "~icons/uil/check-circle";
 
-    $: isTemplateInstalled = false;
-    $: modName = "MyMod";
-    $: appendComments = true;
+    const SDK_URL = "https://dotnet.microsoft.com/en-us/download/dotnet";
+
+    type TemplateState = "checking" | "missing" | "installed" | "no-dotnet";
+
+    let templateState: TemplateState = "checking";
+    let modName = "MyMod";
+    let appendComments = true;
+
+    // the template uses the name for the C# namespace and class, so it has to be a valid identifier
+    $: nameError = !modName.trim()
+        ? "Enter a name for your mod."
+        : !/^[A-Za-z_][A-Za-z0-9_]*$/.test(modName.trim())
+            ? "Use letters, numbers and underscores only, starting with a letter."
+            : null;
 
     async function checkForTemplate() {
+        templateState = "checking";
         try {
-            let cmd = new Command("dotnet-template-check", ["new", "sotfmod"]);
-            let result = await cmd.execute();
-            isTemplateInstalled = result.code === 0 && !result.stdout.includes("No templates or subcommands found");
+            const result = await new Command("dotnet-template-check", ["new", "sotfmod", "-h"]).execute();
+            const output = result.stdout + result.stderr;
+            templateState = result.code === 0 && !/No templates (or subcommands )?found/i.test(output) ? "installed" : "missing";
         } catch (err) {
+            // spawning failed, so the dotnet CLI isn't on PATH
             console.log(err);
+            templateState = "no-dotnet";
         }
-
-        processing.set(false);
     }
 
     async function installTemplate() {
-        try {
-            processing.set(true);
-            processName.set("Installing template...");
-
-            let cmd = new Command("dotnet-install-template", ["new", "--install", "RedLoader.Templates"]);
-            await cmd.execute();
-        } catch (err) {
-            console.log(err);
-        }
+        await runTask("Installing RedLoader template...", async () => {
+            let result = await new Command("dotnet-install-template-new", ["new", "install", "RedLoader.Templates"]).execute();
+            if (result.code !== 0) {
+                // .NET 6 SDKs only know the older --install syntax
+                result = await new Command("dotnet-install-template", ["new", "--install", "RedLoader.Templates"]).execute();
+            }
+            if (result.code !== 0) {
+                throw new Error(`Template install failed: ${(result.stderr || result.stdout).trim()}`);
+            }
+        }, "Template installed.");
 
         await checkForTemplate();
     }
 
     async function createProject() {
-        try {
-            processing.set(true);
-            processName.set("Creating project...");
+        if (nameError) return;
+        const name = modName.trim();
 
-            let targetLocation = "";
-            let gameDir = await path.dirname(get(gameExePath));
+        const selected = await dialog.open({ directory: true, multiple: false, title: "Choose where to create the project" });
+        if (typeof selected !== "string") return;
 
-            const diares = await dialog.open({
-                directory: true,
-                multiple: false,
-            });
+        const targetLocation = await path.join(selected, name);
+        if (await fs.exists(targetLocation)) {
+            notify(`A folder named "${name}" already exists there.`, "error");
+            return;
+        }
 
-            if (diares && diares.length > 0) {
-                const dir = diares as string;
-                targetLocation = await path.join(dir, modName);
-            }
-
-            console.log(modName);
-            console.log(targetLocation);
-            console.log(gameDir);
-
-            let argList = ["new", "sotfmod", "-n", modName, "-g", gameDir, "-o", targetLocation];
+        const ok = await runTask(`Creating ${name}...`, async () => {
+            const gameDir = await getDirectoryPath();
+            const argList = ["new", "sotfmod", "-n", name, "-g", gameDir, "-o", targetLocation];
             if (!appendComments) {
                 argList.push("-c", "false");
             }
 
-            console.log(argList);
-            console.log(`Checked ${appendComments}`);
-    
-            let cmd = new Command("dotnet-create-project", argList);
-            let result = await cmd.execute();
-            console.log(result.stdout);
-            console.log(result.stderr);
+            const result = await new Command("dotnet-create-project", argList).execute();
+            if (result.code !== 0) {
+                throw new Error(`dotnet new failed: ${(result.stderr || result.stdout).trim()}`);
+            }
+        }, `Created ${name}.`);
 
-            cmd = new Command("open-explorer", [targetLocation]);
-            await cmd.execute();
-        } catch (err) {
-            console.log(err);
+        if (ok) {
+            await new Command("open-explorer", [targetLocation]).execute().catch(console.log);
         }
-
-        processing.set(false);
     }
 
-    onMount(async () => {
-        processing.set(true);
-        processName.set("Checking for template...");
-        
-        await checkForTemplate();
-    });
+    onMount(checkForTemplate);
 </script>
 
-<div class="column">
-    <b class="desc">
-        Various tools for modders
-    </b>
-    {#if !isTemplateInstalled}
-        <div class="description">
-            <span>
-                Install the template to create new mod projects in dotnet
-            </span>
-            <button class="generic-button" on:click={installTemplate}>Install Template</button>
-        </div>
-    {:else}
-        <div class="description">
-            <span>
-                Create a new mod project using the game path set in the "Main" tab
-            </span>
-            <input class="generic-input" type="text" bind:value={modName} />
-            <div class="form-checkbox">
-                <input type="checkbox" id="check" bind:checked={appendComments}>
-                <label for="check">
-                  Append Comments
-                </label>
-                <p class="note">
-                  Append documenting comments to the generated code. Recommended if it's your first mod.
-                </p>
+<div class="page">
+    <div>
+        <h2>Mod Creation</h2>
+        <p class="muted">Tools for building your own RedLoader mods.</p>
+    </div>
+
+    <span class="section-title">New project</span>
+    <div class="card project-card">
+        {#if templateState === "checking"}
+            <span class="muted">Checking for the RedLoader project template...</span>
+        {:else if templateState === "no-dotnet"}
+            <div class="banner banner-warning">
+                <UilExclamationTriangle />
+                <span>
+                    The .NET SDK wasn't found. <button class="link" on:click={() => shell.open(SDK_URL)}>Install the .NET SDK</button>, then
+                    <button class="link" on:click={checkForTemplate}>check again</button>.
+                </span>
             </div>
-            <button class="generic-button" on:click={createProject}>Create Project</button>
-        </div>
+        {:else if templateState === "missing"}
+            <div class="row">
+                <div class="grow">
+                    <span class="name">RedLoader template</span>
+                    <p class="muted small">Install the dotnet template to create new mod projects.</p>
+                </div>
+                <button class="btn-primary" on:click={installTemplate}><UilArrowCircleDown /> Install Template</button>
+            </div>
+        {:else}
+            <div class="row">
+                <span class="badge badge-success"><UilCheckCircle /> Template installed</span>
+            </div>
+
+            <label class="field">
+                <span class="field-label">Mod name</span>
+                <input type="text" bind:value={modName} spellcheck="false" />
+                {#if nameError}<span class="field-error">{nameError}</span>{/if}
+            </label>
+
+            <label class="check">
+                <input type="checkbox" bind:checked={appendComments} />
+                <span>
+                    <span>Add explanatory comments</span>
+                    <span class="muted small">Documents the generated code. Recommended for your first mod.</span>
+                </span>
+            </label>
+
+            {#if !$isPathValid}
+                <span class="field-error">Set the game location on the Loader tab first. The project references the game's files.</span>
+            {/if}
+
+            <div class="row">
+                <button class="btn-primary" disabled={!!nameError || !$isPathValid} on:click={createProject}><UilPlusCircle /> Create Project</button>
+            </div>
+        {/if}
+    </div>
+
+    {#if $isPathValid}
+        <span class="section-title">Developer tools</span>
+        <FeatureList features={[ueFeature]} />
     {/if}
-    <br />
-    <FeatureList features={[ueFeature]} />
 </div>
 
 <style>
-    .desc {
-        margin-bottom: 2em;
-        display: block;
-        text-align: center;
-        color: #a2a2a2;
+    h2 {
+        font-size: 1.3em;
+        margin-bottom: 2px;
     }
 
-    .generic-button {
-        color: #659cf0;
+    .project-card {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
     }
 
-    .description {
-        padding: 10px;
-        border-radius: 10px;
-        border: 2px dashed #414141;
-    }
-    
-    .description > * {
-        width: 100%;
+    .row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
     }
 
-    .description > span {
-        margin-bottom: 1em;
-        display: block;
-        text-align: center;
-        font-size: 0.9em;
-        color: #a2a2a2;
+    .grow {
+        flex: 1;
+    }
+
+    .name {
+        font-weight: 600;
+    }
+
+    .small {
+        font-size: 0.88em;
+    }
+
+    .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .field-label {
+        font-size: 0.88em;
+        font-weight: 500;
+        color: var(--text-muted);
+    }
+
+    .field-error {
+        font-size: 0.85em;
+        color: var(--danger);
+    }
+
+    .check {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        cursor: pointer;
+    }
+
+    .check > span {
+        display: flex;
+        flex-direction: column;
     }
 </style>

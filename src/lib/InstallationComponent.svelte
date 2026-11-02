@@ -1,120 +1,136 @@
 <script lang="ts">
-  import { processProgress, processing } from './store';
+  import { onMount } from 'svelte';
+  import { runTask } from './store';
   import { InstallMode, type FeatureInstaller } from "./featureInstaller";
-    import { GithubInfo, redLoaderInfo } from './githubInfo';
-    import { onMount } from 'svelte';
+  import { confirmAction } from './utils';
+  import UilArrowCircleDown from "~icons/uil/arrow-circle-down";
+  import UilTrashAlt from "~icons/uil/trash-alt";
+  import UilSync from "~icons/uil/sync";
 
   export let feature: FeatureInstaller;
 
-  $: currentMode = feature.currentModeState;
-  $: currentClass = currentMode.toLowerCase();
-  $: shouldBeVisible = false;
-  $: description = feature.description;
+  let mode: InstallMode = feature.currentMode;
+  let visible = false;
+  let loading = true;
+  let remoteVersion: string | null = null;
+  let localVersion: string | null = null;
 
-  $: featureLabel = feature.getName();
-  $: loading = true;
-
-  async function handleWrapper(callback: () => Promise<void>) {
-    processing.set(true);
-    processProgress.set(0);
-
-    await callback();
-
-    processing.set(false);
-
-    currentMode = feature.currentModeState;
-    await refreshVisibility();
-  }
-
-  async function handleDefault() {
-    await handleWrapper(async () => {
-      await feature.handleCurrentMode();
-    });
-  }  
-
-  async function handleUpdate() {
-    await handleWrapper(async () => {
-      await feature.handle(InstallMode.Update);
-    });
-  }
-
-  async function handleUninstall() {
-    await handleWrapper(async () => {
-      await feature.handle(InstallMode.Uninstall);
-    });
-  }
-
-  onMount( async () => {
+  async function refresh() {
     await feature.refreshMode();
-    currentMode = feature.currentModeState;
-    featureLabel = await feature.getRemoteVersionString(true)??feature.getName();
-    await refreshVisibility();
-    loading = false;
-  });
-
-  async function refreshVisibility()
-  {
-    shouldBeVisible = await feature.canDoAction() as boolean;
+    mode = feature.currentMode;
+    localVersion = feature.localVersion;
+    visible = await feature.canDoAction();
   }
+
+  async function run(targetMode: InstallMode) {
+    const name = feature.getName();
+
+    if (targetMode === InstallMode.Uninstall) {
+      const message = feature.uninstallWarning ?? `Remove ${name} from the game folder?`;
+      if (!(await confirmAction(`Uninstall ${name}`, message))) return;
+    }
+
+    const verb = targetMode === InstallMode.Uninstall ? "Removing" : targetMode === InstallMode.Update ? "Updating" : "Installing";
+    const done = targetMode === InstallMode.Uninstall ? "removed" : targetMode === InstallMode.Update ? "updated" : "installed";
+
+    await runTask(`${verb} ${name}...`, () => feature.handle(targetMode), `${name} ${done}.`);
+    await refresh();
+  }
+
+  onMount(async () => {
+    try {
+      remoteVersion = await feature.getRemoteVersionString();
+      await refresh();
+    } finally {
+      loading = false;
+    }
+  });
 </script>
 
 {#if loading}
-  <div class="feature-container">
-    <span class="description-content">Checking {feature.getName()} installation...</span>
-  </div>
-{/if}
-
-{#if shouldBeVisible}
-  <div class="feature-container" class:description={description}>
-    {#if description}
-        <span class="description-content">{description}</span>
-    {/if}
-  {#if currentMode==="Update"}
-    <div class="horizontal">
-      <button on:click={handleUpdate} class="update btn-left">Update {featureLabel}</button>
-      <button on:click={handleUninstall} class="uninstall btn-right">Uninstall {feature.getName()}</button>
+  <div class="card feature">
+    <div class="info">
+      <span class="name">{feature.getName()}</span>
+      <span class="muted small">Checking installation...</span>
     </div>
-  {:else}
-    <button on:click={handleDefault} class="{currentClass}">{currentMode} {featureLabel}</button>
-  {/if}
+  </div>
+{:else if visible}
+  <div class="card feature" class:warning={!feature.hasInstaller()}>
+    <div class="info">
+      <div class="title-row">
+        <span class="name">{feature.getName()}</span>
+        {#if mode === InstallMode.Update}
+          <span class="badge badge-info">Update available</span>
+        {:else if mode === InstallMode.Uninstall && feature.hasInstaller()}
+          <span class="badge badge-success">Installed</span>
+        {:else if mode === InstallMode.Uninstall}
+          <span class="badge badge-warning">Conflicting loader</span>
+        {:else}
+          <span class="badge">Not installed</span>
+        {/if}
+      </div>
+      {#if feature.description}
+        <span class="muted small">{feature.description}</span>
+      {/if}
+      {#if feature.hasInstaller()}
+        <span class="faint small">
+          {#if localVersion}Installed: v{localVersion} · {/if}Latest: {remoteVersion ?? "unavailable (offline?)"}
+        </span>
+      {/if}
+    </div>
+
+    <div class="actions">
+      {#if mode === InstallMode.Install}
+        <button class="btn-primary" on:click={() => run(InstallMode.Install)}><UilArrowCircleDown /> Install</button>
+      {:else}
+        {#if mode === InstallMode.Update}
+          <button class="btn-info" on:click={() => run(InstallMode.Update)}><UilSync /> Update</button>
+        {:else if feature.hasInstaller()}
+          <button class="btn-ghost" title="Download and install again" on:click={() => run(InstallMode.Install)}><UilSync /> Reinstall</button>
+        {/if}
+        <button class="btn-danger" on:click={() => run(InstallMode.Uninstall)}><UilTrashAlt /> {feature.hasInstaller() ? "Uninstall" : "Remove"}</button>
+      {/if}
+    </div>
   </div>
 {/if}
 
 <style>
-  .horizontal {
+  .feature {
     display: flex;
-    flex-direction: row;
     align-items: center;
+    gap: 16px;
   }
 
-  .horizontal > * {
-    /* margin-right: 1em; */
+  .feature.warning {
+    border-color: rgba(227, 179, 65, 0.3);
+  }
+
+  .info {
     flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
   }
 
-  .feature-container > * {
-    width: 100%;
+  .title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
-  .description {
-    padding: 10px;
-    border-radius: 10px;
-    border: 2px dashed #414141;
+  .name {
+    font-weight: 600;
+    font-size: 1.05em;
   }
 
-  .description-content {
-    margin-bottom: 1em;
-    display: block;
-    text-align: center;
-    font-size: 0.9em;
-    color: #a2a2a2;
+  .small {
+    font-size: 0.88em;
   }
 
-  .btn-left {
-    border-radius: 10px 0 0 10px;
-  }
-
-  .btn-right {
-    border-radius: 0 10px 10px 0;
+  .actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
   }
 </style>

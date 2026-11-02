@@ -6,10 +6,8 @@
     export let features: FeatureInstaller[] = [];
 </script>
 
-<div class="column">
-    {#if $isPathValid}
-        {#each features as feature}
-            <InstallFeature feature={feature} />
-        {/each}
-    {/if}
-</div>
+{#if $isPathValid}
+    {#each features as feature}
+        <InstallFeature feature={feature} />
+    {/each}
+{/if}

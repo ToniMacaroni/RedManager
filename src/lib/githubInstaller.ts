@@ -9,8 +9,12 @@ export class GithubInstaller extends BaseWebInstaller {
     this._repo = repo;
   }
 
-  protected async getDownloadUrl(version: string): Promise<string> {
-    return this._repo.getDownloadLink(await this._repo.getLatest());
+  protected async getDownloadUrl(): Promise<string | null> {
+    const latest = await this._repo.getLatest();
+    if (!latest) {
+      throw new Error(`Couldn't reach GitHub to find the latest ${this.getName()} release.`);
+    }
+    return this._repo.getDownloadLink(latest);
   }
 
   public getTargetVersion(): Promise<string | null> {
