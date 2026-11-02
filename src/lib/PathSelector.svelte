@@ -1,20 +1,22 @@
 <script lang="ts">
-    import { fs, dialog } from "@tauri-apps/api";
-    import { writable } from "svelte/store";
-    import { gameExePath, isPathValid } from "./store";
+    import { dialog, path } from "@tauri-apps/api";
+    import { gameExePath, isPathValid, notify, setGamePath } from "./store";
+    import UilFolderOpen from "~icons/uil/folder-open";
+    import UilCheckCircle from "~icons/uil/check-circle";
+    import UilExclamationTriangle from "~icons/uil/exclamation-triangle";
 
     async function selectPath() {
         try {
             const result = await dialog.open({
                 multiple: false,
-                filters: [{ name: "Executable", extensions: ["exe"] }],
+                title: "Select SonsOfTheForest.exe",
+                defaultPath: $gameExePath ? await path.dirname($gameExePath) : undefined,
+                filters: [{ name: "Sons of the Forest", extensions: ["exe"] }],
             });
-            if (result && result.length > 0) {
-                const exe = result as string;
-                if (exe.endsWith("SonsOfTheForest.exe")) {
-                    gameExePath.set(result as string);
-                    isPathValid.set(true);
-                }
+            if (typeof result !== "string") return;
+
+            if (!(await setGamePath(result))) {
+                notify("That isn't SonsOfTheForest.exe. Pick the exe inside the game's install folder.", "error");
             }
         } catch (error) {
             console.error("Error selecting path:", error);
@@ -22,35 +24,54 @@
     }
 </script>
 
-<div id="path-selector">
-    <input class="path-input" type="text" bind:value={$gameExePath} readonly />
-    <button class="select-btn" on:click={selectPath}>...</button>
+<div class="card path-card">
+    <div class="path-header">
+        <span class="label">Game location</span>
+        {#if $isPathValid}
+            <span class="badge badge-success"><UilCheckCircle /> Found</span>
+        {:else}
+            <span class="badge badge-warning"><UilExclamationTriangle /> Not set</span>
+        {/if}
+    </div>
+    <div class="path-row">
+        <input
+            type="text"
+            readonly
+            value={$gameExePath}
+            placeholder="Couldn't find the game automatically. Browse to SonsOfTheForest.exe"
+            title={$gameExePath}
+        />
+        <button on:click={selectPath}><UilFolderOpen /> Browse</button>
+    </div>
 </div>
 
 <style>
-    #path-selector {
-        margin-bottom: 1em;
+    .path-card {
         display: flex;
-        width: 100%;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .path-header {
+        display: flex;
         align-items: center;
+        justify-content: space-between;
     }
 
-    .path-input {
-        flex: 1; /* Takes up all available space */
-        box-sizing: border-box;
-        height: 100%; /* Ensures that it takes the full height of its parent */
-        margin: 0; /* Removes default margin from input */
-        border-radius: 8px 0 0 8px;
-        width: 80%;
-        color: #a2a2a2;
-        text-align: center;
-        /* font-family: "Roboto Mono", monospace; */
+    .label {
+        font-weight: 600;
     }
 
-    .select-btn {
-        border-radius: 0 8px 8px 0;
-        height: 100%; /* Ensures that it takes the full height of its parent */
-        margin: 0; /* Removes default margin from button */
-        box-sizing: border-box;
+    .path-row {
+        display: flex;
+        gap: 8px;
+    }
+
+    .path-row input {
+        flex: 1;
+        color: var(--text-muted);
+        font-family: 'Cascadia Mono', Consolas, monospace;
+        font-size: 0.85em;
+        text-overflow: ellipsis;
     }
 </style>

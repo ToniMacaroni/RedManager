@@ -1,12 +1,9 @@
-import { DebugInstaller } from "./debugInstaller";
 import type { BaseInstaller } from "./baseInstaller";
 import { getDirectoryPath, processName } from "./store";
 import { BaseUninstaller } from "./baseUninstaller";
-import { writable, get } from "svelte/store";
-import { GithubInstaller } from "./GithubInstaller";
+import { GithubInstaller } from "./githubInstaller";
 import { redLoaderInfo, unityExplorerInfo } from "./githubInfo";
 import { fs, invoke, path } from "@tauri-apps/api";
-import { gameExePath } from "./store";
 import semver from "semver";
 
 export enum InstallMode {
@@ -29,6 +26,8 @@ export class FeatureInstaller {
     public currentMode: InstallMode = InstallMode.Install;
     public currentModeState: string = "Install";
     public description: string | null = null;
+    public uninstallWarning: string | null = null;
+    public localVersion: string | null = null;
 
     public expectedMode: InstallMode | null = null;
     public additionalFoldersToCreate: string[] | null = null;
@@ -54,7 +53,7 @@ export class FeatureInstaller {
             for (const folder of this.additionalFoldersToCreate) {
                 let dir = await path.join(await getDirectoryPath(), folder);
                 if(!await fs.exists(dir)) {
-                    await fs.createDir(dir);
+                    await fs.createDir(dir, { recursive: true });
                 }
             }
         }
@@ -66,19 +65,19 @@ export class FeatureInstaller {
     }
 
     public async handle(mode: InstallMode): Promise<void> {
-        switch (mode) {
-            case InstallMode.Install:
-                await this.install();
-                break;
-            case InstallMode.Update:
-                await this.install();
-                break;
-            case InstallMode.Uninstall:
-                await this.uninstall();
-                break;
+        try {
+            switch (mode) {
+                case InstallMode.Install:
+                case InstallMode.Update:
+                    await this.install();
+                    break;
+                case InstallMode.Uninstall:
+                    await this.uninstall();
+                    break;
+            }
+        } finally {
+            await this.refreshMode();
         }
-
-        await this.refreshMode();
     }
 
     public async handleCurrentMode(): Promise<void> {
@@ -92,6 +91,10 @@ export class FeatureInstaller {
         }
 
         return this._uninstaller.getName();
+    }
+
+    public hasInstaller(): boolean {
+        return this._installer !== null;
     }
 
     public getMode(): InstallMode {
@@ -115,11 +118,12 @@ export class FeatureInstaller {
     }
 
     public async refreshMode() : Promise<void> {
+        this.localVersion = await this.getLocalVersion();
         if(await this._uninstaller.isInstalled()){
             if(await this.checkRemoteVersion() === VersionResult.Greater) {
                 this.setMode(InstallMode.Update);
             }else {
-                this.setMode(InstallMode.Uninstall);                
+                this.setMode(InstallMode.Uninstall);
             }
         }else {
             this.setMode(InstallMode.Install);
@@ -127,13 +131,7 @@ export class FeatureInstaller {
     }
 
     public async checkRemoteVersion(): Promise<VersionResult | null> {
-        if(!this._versionCheckPath)
-        {
-            return null;
-        }
-
-        let localVersion = await this.getLocalVersion();
-        if(!localVersion)
+        if(!this._versionCheckPath || !this.localVersion)
         {
             return null;
         }
@@ -144,12 +142,16 @@ export class FeatureInstaller {
             return null;
         }
 
-        console.log("Local version:",localVersion);
-        console.log("Remote version:",remoteVersion);
+        const remote = semver.coerce(remoteVersion);
+        const local = semver.coerce(this.localVersion);
+        if(!remote || !local)
+        {
+            return null;
+        }
 
-        if(semver.gt(remoteVersion, localVersion)) {
+        if(semver.gt(remote, local)) {
             return VersionResult.Greater;
-        }else if(semver.lt(remoteVersion, localVersion)) {
+        }else if(semver.lt(remote, local)) {
             return VersionResult.Lesser;
         }else {
             return VersionResult.Equal;
@@ -163,10 +165,12 @@ export class FeatureInstaller {
         }
 
         try {
-            const exeDir = await path.dirname(get(gameExePath));
-            return await invoke("get_file_version", {
-                path: exeDir + "\\" + this._versionCheckPath
-            });
+            const versionFile = await path.join(await getDirectoryPath(), this._versionCheckPath);
+            if(!await fs.exists(versionFile))
+            {
+                return null;
+            }
+            return await invoke("get_file_version", { path: versionFile });
         } catch (error) {
             console.log(error);
         }
@@ -174,27 +178,17 @@ export class FeatureInstaller {
         return null;
     }
 
-    public async canDoAction(): Promise<Boolean>{
-        if(!this.expectedMode)
+    public async canDoAction(): Promise<boolean>{
+        if(this.expectedMode === null)
         {
             return true;
         }
 
-        if(this.expectedMode !== this.getMode()){
-            return false;
-        }
-
-        return true;
+        return this.expectedMode === this.getMode();
     }
 
-    public async getRemoteVersionString(withPrefix: boolean): Promise<string | null> {
-        let version = await this._installer?.getTargetVersion();
-        if(!version)
-        {
-            return null;
-        }
-
-        return withPrefix ? this.getName() + " " + version : version;
+    public async getRemoteVersionString(): Promise<string | null> {
+        return await this._installer?.getTargetVersion() ?? null;
     }
 }
 
@@ -205,7 +199,6 @@ let loaderUninstaller = new BaseUninstaller([
     "version.dll",
 ], "RedLoader");
 
-let loaderDebugInstaller = new DebugInstaller("I:\\repos\\MelonLoader\\RedLoader.zip", "RedLoader");
 let loaderInstaller = new GithubInstaller(redLoaderInfo, "RedLoader");
 
 let ueUninstaller = new BaseUninstaller([
@@ -216,13 +209,13 @@ let ueUninstaller = new BaseUninstaller([
 ], "UnityExplorer");
 let ueInstaller = new GithubInstaller(unityExplorerInfo, "UnityExplorer");
 
-export let debugInstaller = new FeatureInstaller(loaderDebugInstaller, loaderUninstaller);
-
 export let loaderFeature = new FeatureInstaller(loaderInstaller, loaderUninstaller, "_RedLoader\\net6\\RedLoader.dll");
-loaderFeature.additionalFoldersToCreate = ["Mods"];
+loaderFeature.additionalFoldersToCreate = ["Mods", "Libs"];
+loaderFeature.description = "The mod loader that powers every mod in the Mods tab.";
+loaderFeature.uninstallWarning = "This removes the _RedLoader folder, dobby.dll and version.dll. Your Mods folder is kept.";
 
 export let ueFeature = new FeatureInstaller(ueInstaller, ueUninstaller);
-ueFeature.description = "UnityExplorer is a modding tool which lets you analyze and manipulate the game at runtime."
+ueFeature.description = "UnityExplorer is a modding tool which lets you analyze and manipulate the game at runtime.";
 
 let bieUninstaller = new BaseUninstaller([
     "BepInEx"
@@ -231,6 +224,8 @@ let bieUninstaller = new BaseUninstaller([
 ], "BepInEx");
 export let bieFeature = new FeatureInstaller(null, bieUninstaller);
 bieFeature.expectedMode = InstallMode.Uninstall;
+bieFeature.description = "An old BepInEx install was found. It conflicts with RedLoader and should be removed.";
+bieFeature.uninstallWarning = "This removes the BepInEx folder and winhttp.dll.";
 
 let melonUninstaller = new BaseUninstaller([
     "MelonLoader",
@@ -244,3 +239,5 @@ let melonUninstaller = new BaseUninstaller([
 melonUninstaller.overrideCheckFiles = ["MelonLoader"];
 export let melonFeature = new FeatureInstaller(null, melonUninstaller);
 melonFeature.expectedMode = InstallMode.Uninstall;
+melonFeature.description = "An old MelonLoader install was found. It conflicts with RedLoader and should be removed.";
+melonFeature.uninstallWarning = "This removes the MelonLoader, Mods, UserData and UserLibs folders plus dobby.dll and version.dll. Back up any mods you want to keep first.";

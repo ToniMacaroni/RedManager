@@ -1,15 +1,17 @@
-import { app, fs, path} from '@tauri-apps/api'
-import { getDirectoryPath, getLibsDir, getModsDir, processName, processProgress } from './store';
-import { downloadAndInstall, showMessageBox } from './utils';
+import { fs, path, shell } from '@tauri-apps/api'
+import type { FileEntry } from '@tauri-apps/api/fs';
+import semver from 'semver';
+import { getDirectoryPath, getLibsDir, getModsDir, processName } from './store';
+import { downloadArchive, unzip } from './utils';
 
 export type ModCategory = {
-    name: String;
-    slug: String;
+    name: string;
+    slug: string;
 }
 
 export type ModAuthor = {
-    name: String;
-    slug: String;
+    name: string;
+    slug: string;
 }
 
 export type Mod = {
@@ -18,11 +20,7 @@ export type Mod = {
     mod_id: string;
     shortDescription: string;
     isApproved: boolean;
-    // category_name: string;
-    // category_slug: string;
     category: ModCategory;
-    // user_name: string;
-    // user_slug: string;
     user: ModAuthor;
     imageUrl: string;
     latestVersion: string;
@@ -33,6 +31,8 @@ export type Mod = {
     isInstalled: boolean;
     installedMod?: InstalledMod;
     hasUpdate: boolean;
+    // true when the mod only exists locally and couldn't be found on sotf-mods
+    isLocalOnly?: boolean;
 }
 
 type RequestMeta = {
@@ -44,7 +44,7 @@ type RequestMeta = {
     total: number;
 }
 
-type EndpointResponse = {
+export type EndpointResponse = {
     meta: RequestMeta;
     data: Mod[];
 }
@@ -56,286 +56,380 @@ export type ModManifest = {
     type: string;
 }
 
+export type LayoutIssue = "nested" | "dll-in-game-root";
+
 export type InstalledMod = {
     modName: string;
     isEnabled: boolean;
     manifest: ModManifest;
-}
-
-export type ModList = {
-    mods: any[];
+    // directory containing the mod's data folder
+    folder: string;
+    // directory containing the mod's .dll / .disabled file
+    dllFolder: string;
+    // set when the files aren't where RedLoader looks for them (Mods/<name>.dll + Mods/<name>/)
+    layoutIssue?: LayoutIssue;
+    // the Mods or Libs directory the mod belongs in
+    targetFolder: string;
 }
 
 export enum Sorting {
     newest = "newest",
 }
 
-const ENDPOINT = "https://api.sotf-mods.com/api/";
+const API_ENDPOINT = "https://api.sotf-mods.com/api/";
+const SITE_ENDPOINT = "https://sotf-mods.com/mods/";
+
+function isNewerVersion(remote: string | undefined, local: string | undefined): boolean {
+    if (!remote || !local) return false;
+    const r = semver.coerce(remote), l = semver.coerce(local);
+    if (r && l) return semver.gt(r, l);
+    return remote !== local;
+}
 
 export class ModDatabase {
 
-    private static mods: Mod[] = [];
-    private static unapprovedMods: Mod[] | null;
-    private static nsfwMods: Mod[] | null;
     private static installedMods: InstalledMod[] = [];
 
     public static async fetchMods(
-            page: number, 
+            page: number,
             sorting: Sorting = Sorting.newest,
-            approved: boolean = true, 
+            approved: boolean = true,
             nsfw: boolean = false,
             searchTerm: string | null = null): Promise<EndpointResponse> {
 
-        let url = `${ENDPOINT}mods?&approved=${approved}&orderby=${sorting}&page=${page}&nsfw=${nsfw}`;
-        if(searchTerm) searchTerm = searchTerm.trim();
-        if(searchTerm && searchTerm !== "")
-        {
-            url += "&search=" + searchTerm;
-        }
+        const params = new URLSearchParams({
+            approved: String(approved),
+            orderby: sorting,
+            page: String(page),
+            nsfw: String(nsfw),
+        });
 
-        let result = await fetch(url);
+        const term = searchTerm?.trim();
+        if (term) params.set("search", term);
+
+        const result = await fetch(`${API_ENDPOINT}mods?${params}`);
+        if (!result.ok) {
+            throw new Error(`sotf-mods.com responded with ${result.status}`);
+        }
         return await result.json();
     }
 
     public static async fetchMod(id: string): Promise<Mod | null> {
-        let result = await fetch("https://api.sotf-mods.com/api/mods/" + id);
-        let resultData = await result.json();
-        if(resultData.status === false){
+        try {
+            const result = await fetch(API_ENDPOINT + "mods/" + encodeURIComponent(id));
+            if (!result.ok) return null;
+            const resultData = await result.json();
+            if (resultData.status === false) return null;
+            return resultData.data ?? null;
+        } catch (error) {
+            console.log(`failed to fetch mod ${id}`, error);
             return null;
         }
-
-        return resultData.data;
-    }
-
-    public static async fetchAllMods(sorting: Sorting = Sorting.newest, approved: boolean = true, nsfw: boolean = false): Promise<Mod[]> {
-        processName.set("Getting initial mod page");
-        processProgress.set(0);
-        let result = await this.fetchMods(1, sorting, approved, nsfw);
-        let meta = result.meta;
-        let mods = result.data as Mod[];
-
-        if(meta.pages > 1) {
-            for(let i = 2; i <= meta.pages; i++) {
-                try {
-                    processName.set(`Getting mod page ${i}/${meta.pages}`);
-                    let pageResult = await this.fetchMods(i, sorting, approved, nsfw);
-                    mods = mods.concat(pageResult.data);
-                    processProgress.set(i / meta.pages * 100);
-                } catch (error) {
-                    showMessageBox("Error", `Failed to load mods page ${i}: ${error}!`);
-                    break;
-                }
-            }
-        }
-
-        return mods;
-    }
-
-    public static getMods(): Mod[] {
-        return this.mods;
     }
 
     public static async getInstalledMods(): Promise<Mod[]> {
-        return await Promise.all(this.installedMods.map(async m=>{
-            let remoteMod = await this.fetchMod(m.modName);
-            if( remoteMod ) {
+        const mods = await Promise.all(this.installedMods.map(async m => {
+            const remoteMod = await this.fetchMod(m.manifest.id ?? m.modName)
+                ?? (m.manifest.id !== m.modName ? await this.fetchMod(m.modName) : null);
+
+            if (remoteMod) {
                 remoteMod.isInstalled = true;
                 remoteMod.installedMod = m;
+                remoteMod.hasUpdate = isNewerVersion(remoteMod.latestVersion, m.manifest.version);
                 return remoteMod;
             }
 
-
-            // return {
-            //     name: m.modName,
-            //     mod_id: m.manifest.id,
-            //     user_name: m.manifest.author,
-            //     latestVersion: m.manifest.version,
-            //     isInstalled: true,
-            //     installedMod: m
-            // } as Mod
             return {
                 name: m.modName,
+                slug: m.modName,
                 mod_id: m.manifest.id,
+                shortDescription: "",
+                isApproved: false,
+                category: { name: "", slug: "" },
+                imageUrl: "",
+                lastReleasedAt: "",
                 user: {
                     name: m.manifest.author,
                     slug: m.manifest.author
-                } as ModAuthor,
+                },
                 latestVersion: m.manifest.version,
+                type: m.manifest.type,
+                dependencies: [],
                 isInstalled: true,
-                installedMod: m
-            } as Mod
+                installedMod: m,
+                hasUpdate: false,
+                isLocalOnly: true,
+            } satisfies Mod
         }));
+
+        return mods.sort((a, b) => a.name.localeCompare(b.name));
     }
 
-    public static async getUnapprovedMods(force: boolean = false): Promise<Mod[]> {
-        if(!this.unapprovedMods || this.unapprovedMods.length === 0 || force) {
-            let mods = await this.fetchAllMods(Sorting.newest, false);
-            this.unapprovedMods = mods;
-        }
-
-        return this.unapprovedMods;
+    public static async openModPage(mod: Mod): Promise<void> {
+        await shell.open(`${SITE_ENDPOINT}${mod.user.slug}/${mod.slug}`);
     }
 
-    public static async getNsfwMods(force: boolean = false): Promise<Mod[]> {
-        if(!this.nsfwMods || this.nsfwMods.length === 0 || force) {
-            let mods = await this.fetchAllMods(Sorting.newest, true, true);
-            this.nsfwMods = mods;
-        }
-
-        return this.nsfwMods;
-    }
-
-    public static async loadMods(force: boolean = false): Promise<void> {
-        if (!this.mods || this.mods.length === 0 || force) {
-            this.mods = await this.fetchAllMods();
-        }
-    }
-
-    public static openModPage(mod: Mod): void {
-        window.open(`https://sotf-mods.com/mods/${mod.user.slug}/${mod.slug}`);
-    }
-
-    private static async initInstalledMod(folderPath: string, isEnabled: boolean): Promise<InstalledMod | null> {
+    private static async readManifest(folderPath: string): Promise<ModManifest | null> {
         try {
-            let modManifestPath = await path.join(folderPath, "manifest.json");
-            let modManifest = await fs.readTextFile(modManifestPath);
-            let manifest = JSON.parse(modManifest);
-            return {
-                manifest: manifest,
-                isEnabled: isEnabled,
-                modName: await path.basename(folderPath)
-            }
+            const manifestPath = await path.join(folderPath, "manifest.json");
+            if (!(await fs.exists(manifestPath))) return null;
+            return JSON.parse(await fs.readTextFile(manifestPath));
         } catch (error) {
-            console.log(`failed to load mod ${await path.basename(folderPath)}`, error);
+            console.log(`failed to read manifest in ${folderPath}`, error);
             return null;
         }
     }
 
-    public static async loadInstalledMods(): Promise<void> {
-        this.installedMods = [];
+    // finds "<name>.dll" or "<name>.disabled" in a directory listing
+    private static findDll(files: FileEntry[], name: string): { file: FileEntry, isEnabled: boolean } | null {
+        const lower = name.toLowerCase();
+        for (const file of files) {
+            const fileName = file.name?.toLowerCase();
+            if (fileName === lower + ".dll") return { file, isEnabled: true };
+            if (fileName === lower + ".disabled") return { file, isEnabled: false };
+        }
+        return null;
+    }
 
-        let modPath = await path.join(await getDirectoryPath(), "Mods");
-        let libPath = await path.join(await getDirectoryPath(), "Libs");
-        let files = await fs.readDir(modPath);
-        files = files.concat(await fs.readDir(libPath));
+    private static async scanDirectory(dir: string, gameDir: string, gameFiles: FileEntry[]): Promise<InstalledMod[]> {
+        let files: FileEntry[];
+        try {
+            files = await fs.readDir(dir);
+        } catch (error) {
+            console.log(`failed to read ${dir}`, error);
+            return [];
+        }
 
-        for (let i = 0; i < files.length; i++) {
-            let file = files[i];
-            if(file.name?.endsWith(".dll") || file.name?.endsWith(".disabled")){
-                let isEnabled = file.name?.endsWith(".dll");
-                let folderName = file.name?.replace(".dll", "").replace(".disabled", "");
-                let folderPath = await path.join(await path.dirname(file.path), folderName);
+        const result: InstalledMod[] = [];
+        const add = async (modFolder: string, dllFolder: string, isEnabled: boolean, layoutIssue?: LayoutIssue) => {
+            const manifest = await this.readManifest(modFolder);
+            if (!manifest) return;
+            result.push({
+                manifest,
+                isEnabled,
+                modName: await path.basename(modFolder),
+                folder: await path.dirname(modFolder),
+                dllFolder,
+                layoutIssue,
+                targetFolder: dir,
+            });
+        };
 
-                if(!(await fs.exists(folderPath)))
-                {
-                    console.log("folder does not exist for mod", folderName);
-                    continue;
-                }
+        for (const entry of files) {
+            if (!entry.children || !entry.name) continue;
 
-                let mod = await this.initInstalledMod(folderPath, isEnabled);
-                if(mod)
-                    this.installedMods.push(mod);
+            // correct layout: Mods/<name>.dll next to Mods/<name>/
+            const dll = this.findDll(files, entry.name);
+            if (dll) {
+                await add(entry.path, dir, dll.isEnabled);
+                continue;
+            }
+
+            // dll was dropped into the game folder instead of Mods
+            if (await this.readManifest(entry.path)) {
+                const rootDll = this.findDll(gameFiles, entry.name);
+                if (rootDll) await add(entry.path, gameDir, rootDll.isEnabled, "dll-in-game-root");
+                continue;
+            }
+
+            // zip was extracted into its own folder: Mods/<wrapper>/<name>.dll + Mods/<wrapper>/<name>/
+            let inner: FileEntry[];
+            try {
+                inner = await fs.readDir(entry.path);
+            } catch {
+                continue;
+            }
+            for (const child of inner) {
+                if (!child.children || !child.name) continue;
+                const innerDll = this.findDll(inner, child.name);
+                if (innerDll) await add(child.path, entry.path, innerDll.isEnabled, "nested");
             }
         }
+
+        return result;
     }
 
-    public static async refreshAll(forceRefresh: boolean): Promise<void> {
-
-        // making sure the mods and libs directory exists
-        processName.set("Checking mods directory");
-        await getModsDir();
-        await getLibsDir();
-
-        processName.set("Retrieving mods");
-        await this.loadMods(forceRefresh);
-        
-        processName.set("Checking installed mods");
-        await this.loadInstalledMods();
-
-        processName.set("Updating mod list");
-        this.mods.forEach(mod => {
-            let installedMod = this.installedMods.find(installedMod => installedMod.manifest.id === mod.mod_id);
-            mod.isInstalled = installedMod !== undefined;
-            mod.installedMod = installedMod;
-            mod.hasUpdate = mod.isInstalled && installedMod?.manifest.version !== mod.latestVersion;
-        });
-    }
-
-    public static async initDatabase(): Promise<void> {
-        if (this.installedMods.length !== 0) {
-            return;
+    public static async loadInstalledMods(): Promise<void> {
+        const gameDir = await getDirectoryPath();
+        let gameFiles: FileEntry[] = [];
+        try {
+            gameFiles = await fs.readDir(gameDir);
+        } catch (error) {
+            console.log(`failed to read ${gameDir}`, error);
         }
 
+        const installed: InstalledMod[] = [];
+        for (const dir of [await getModsDir(), await getLibsDir()]) {
+            installed.push(...await this.scanDirectory(dir, gameDir, gameFiles));
+        }
+
+        this.installedMods = installed;
+    }
+
+    // moves a mod's files to Mods/<name>.dll + Mods/<name>/ so RedLoader can load it
+    public static async fixLayout(mod: InstalledMod): Promise<void> {
+        if (!mod.layoutIssue) return;
+
+        const dllName = mod.modName + (mod.isEnabled ? ".dll" : ".disabled");
+        const targetDll = await path.join(mod.targetFolder, dllName);
+        const targetFolder = await path.join(mod.targetFolder, mod.modName);
+        const sourceDll = await path.join(mod.dllFolder, dllName);
+        const sourceFolder = await path.join(mod.folder, mod.modName);
+
+        if (await fs.exists(targetDll)) throw new Error(`${targetDll} already exists.`);
+        if (sourceFolder !== targetFolder && await fs.exists(targetFolder)) throw new Error(`${targetFolder} already exists.`);
+
+        await fs.renameFile(sourceDll, targetDll);
+        if (sourceFolder !== targetFolder) await fs.renameFile(sourceFolder, targetFolder);
+
+        if (mod.layoutIssue === "nested") await this.removeIfEmpty(mod.folder);
+
         await this.loadInstalledMods();
+    }
+
+    private static async removeIfEmpty(dir: string): Promise<void> {
+        try {
+            if ((await fs.readDir(dir)).length === 0) await fs.removeDir(dir);
+        } catch (error) {
+            console.log(`failed to clean up ${dir}`, error);
+        }
     }
 
     public static initModList(modList: Mod[]): void {
         modList.forEach(mod => {
-            let installedMod = this.installedMods.find(installedMod => installedMod.manifest.id === mod.mod_id);
+            const installedMod = this.installedMods.find(m => m.manifest.id === mod.mod_id);
             mod.isInstalled = installedMod !== undefined;
             mod.installedMod = installedMod;
-            mod.hasUpdate = mod.isInstalled && installedMod?.manifest.version !== mod.latestVersion;
+            mod.hasUpdate = mod.isInstalled && isNewerVersion(mod.latestVersion, installedMod?.manifest.version);
         });
     }
 
-    public static async loadPage(page: number): Promise<void> {
-        await this.initDatabase();
-        let res = await this.fetchMods(page);
-        
-    }
-
     public static getInstalledMod(modId: string): InstalledMod | undefined {
-        return this.installedMods.find(mod => mod.modName === modId);
+        return this.installedMods.find(mod => mod.manifest.id === modId || mod.modName === modId);
     }
 
-    public static async installMod(mod: Mod): Promise<void> {
-        let gamePath = await getDirectoryPath();
-        let modUrl = `https://sotf-mods.com/mods/${mod.user.slug}/${mod.slug}/download/${mod.latestVersion}`;
-        await downloadAndInstall(gamePath, modUrl, mod.name);
+    public static async installMod(mod: Mod, visited: Set<string> = new Set()): Promise<void> {
+        visited.add(mod.mod_id);
 
-        for (const dependency of mod.dependencies) {
-            if(!dependency || dependency.length === 0) 
+        const modUrl = `${SITE_ENDPOINT}${mod.user.slug}/${mod.slug}/download/${mod.latestVersion}`;
+        await downloadArchive(modUrl, mod.name, zipPath => this.installArchive(zipPath));
+
+        for (const dependency of mod.dependencies ?? []) {
+            if (!dependency || visited.has(dependency) || this.getInstalledMod(dependency))
                 continue;
-            
-            await showMessageBox("Installing dependency", `Installing dependency ${dependency} for mod ${mod.name} (a refresh may be needed to show the dependency as installed)`);
 
-            let dependencyMod = await this.fetchMod(dependency);
-            if(dependencyMod) {
-                await this.installMod(dependencyMod);
+            processName.set(`Installing dependency ${dependency}...`);
+            const dependencyMod = await this.fetchMod(dependency);
+            if (!dependencyMod) {
+                throw new Error(`${mod.name} needs "${dependency}", which couldn't be found on sotf-mods.com.`);
             }
+            await this.installMod(dependencyMod, visited);
         }
 
-        //await this.refreshAll(false);
+        await this.loadInstalledMods();
+    }
+
+    // Mod zips on sotf-mods.com aren't consistent: some contain Mods/<name>.dll, some just <name>.dll,
+    // and some wrap everything in an extra folder. Extract to a staging folder, find each
+    // <name>.dll + <name>/manifest.json pair and move it to where RedLoader expects it.
+    private static async installArchive(zipPath: string): Promise<void> {
+        const gameDir = await getDirectoryPath();
+        // staging inside the game folder keeps the final move on the same drive
+        const staging = await path.join(gameDir, `_RedManagerTemp_${Date.now()}`);
+        await fs.createDir(staging, { recursive: true });
+
+        try {
+            await unzip(zipPath, staging);
+            const tree = await fs.readDir(staging, { recursive: true });
+            const pairs = await this.findModPairs(tree, false);
+
+            if (pairs.length === 0) {
+                await this.installUnrecognized(tree, zipPath, gameDir);
+                return;
+            }
+
+            for (const pair of pairs) {
+                const manifest = await this.readManifest(pair.folder);
+                const isLibrary = pair.inLibs || manifest?.type === "Library";
+                const targetDir = isLibrary ? await getLibsDir() : await getModsDir();
+                const name = await path.basename(pair.folder);
+
+                const targetDll = await path.join(targetDir, await path.basename(pair.dll));
+                const targetFolder = await path.join(targetDir, name);
+                for (const stale of [targetDll, await path.join(targetDir, name + ".disabled")]) {
+                    if (await fs.exists(stale)) await fs.removeFile(stale);
+                }
+                if (await fs.exists(targetFolder)) await fs.removeDir(targetFolder, { recursive: true });
+
+                await fs.renameFile(pair.dll, targetDll);
+                await fs.renameFile(pair.folder, targetFolder);
+            }
+        } finally {
+            await fs.removeDir(staging, { recursive: true }).catch(console.log);
+        }
+    }
+
+    private static async findModPairs(entries: FileEntry[], inLibs: boolean): Promise<{ dll: string, folder: string, inLibs: boolean }[]> {
+        const pairs: { dll: string, folder: string, inLibs: boolean }[] = [];
+        for (const entry of entries) {
+            if (!entry.children || !entry.name) continue;
+
+            const dll = this.findDll(entries, entry.name);
+            if (dll && entry.children.some(c => c.name?.toLowerCase() === "manifest.json")) {
+                pairs.push({ dll: dll.file.path, folder: entry.path, inLibs });
+                continue;
+            }
+
+            pairs.push(...await this.findModPairs(entry.children, inLibs || entry.name.toLowerCase() === "libs"));
+        }
+        return pairs;
+    }
+
+    // archives without a manifest: keep game-relative layouts as they are, put loose dlls into Mods
+    private static async installUnrecognized(tree: FileEntry[], zipPath: string, gameDir: string): Promise<void> {
+        const topLevel = tree.map(e => e.name?.toLowerCase());
+        if (topLevel.includes("mods") || topLevel.includes("libs")) {
+            await unzip(zipPath, gameDir);
+            return;
+        }
+
+        const dlls = tree.filter(e => !e.children && e.name?.toLowerCase().endsWith(".dll"));
+        if (dlls.length === 0) {
+            throw new Error("This mod's archive has a layout RedManager doesn't recognize. Install it manually from the mod page.");
+        }
+
+        const modsDir = await getModsDir();
+        for (const dll of dlls) {
+            const target = await path.join(modsDir, dll.name!);
+            if (await fs.exists(target)) await fs.removeFile(target);
+            await fs.renameFile(dll.path, target);
+        }
     }
 
     private static async getPathsForMod(mod: InstalledMod): Promise<string[]> {
-        let gamePath = await getDirectoryPath();
-
-        let subFolder = mod.manifest.type == "Mod" ? "Mods" : "Libs";
-        let modDllPath = await path.join(gamePath, subFolder, mod.modName + (mod.isEnabled ? ".dll" : ".disabled"));
-        let modFolder = await path.join(gamePath, subFolder, mod.modName);
-
+        const modDllPath = await path.join(mod.dllFolder, mod.modName + (mod.isEnabled ? ".dll" : ".disabled"));
+        const modFolder = await path.join(mod.folder, mod.modName);
         return [modDllPath, modFolder];
     }
 
     public static async uninstallMod(mod: InstalledMod): Promise<void> {
-        let [modDllPath, modFolder] = await this.getPathsForMod(mod);
+        const [modDllPath, modFolder] = await this.getPathsForMod(mod);
 
-        if(await fs.exists(modDllPath)) await fs.removeFile(modDllPath);
-        if(await fs.exists(modFolder)) await fs.removeDir(modFolder, { recursive: true });
+        if (await fs.exists(modDllPath)) await fs.removeFile(modDllPath);
+        if (await fs.exists(modFolder)) await fs.removeDir(modFolder, { recursive: true });
+        if (mod.layoutIssue === "nested") await this.removeIfEmpty(mod.folder);
 
-        //await this.refreshAll(false);
+        await this.loadInstalledMods();
     }
 
     public static async toggleMod(mod: InstalledMod, shouldEnable: boolean): Promise<void> {
-        let modPath = await getDirectoryPath();
-        let modDllPath = await path.join(modPath, "Mods", `${mod.modName}.dll`);
-        let modDisabledPath = await path.join(modPath, "Mods", `${mod.modName}.disabled`);
+        const modDllPath = await path.join(mod.dllFolder, `${mod.modName}.dll`);
+        const modDisabledPath = await path.join(mod.dllFolder, `${mod.modName}.disabled`);
 
-        if(shouldEnable && (await fs.exists(modDisabledPath))) {
+        if (shouldEnable && (await fs.exists(modDisabledPath))) {
             await fs.renameFile(modDisabledPath, modDllPath);
             mod.isEnabled = true;
-        } else if(!shouldEnable && (await fs.exists(modDllPath))) {
+        } else if (!shouldEnable && (await fs.exists(modDllPath))) {
             await fs.renameFile(modDllPath, modDisabledPath);
             mod.isEnabled = false;
         }
