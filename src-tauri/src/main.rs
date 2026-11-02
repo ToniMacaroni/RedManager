@@ -9,11 +9,7 @@ use std::io::{BufReader, BufRead};
 use winreg::{RegKey, enums::*};
 use regex::Regex;
 
-use std::ffi::OsStr;
-use std::iter::once;
-use std::os::windows::ffi::OsStrExt;
-
-use std::{env, error::Error, path::Path, path::PathBuf, ptr::null_mut, slice};
+use std::{env, error::Error, path::Path, path::PathBuf, ptr::null_mut};
 use windows::{
     core,
     Win32::Storage::FileSystem::{GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW, VS_FIXEDFILEINFO},
@@ -24,17 +20,27 @@ const SOTF_APP_ID: &str = "1326470";
 #[tauri::command]
 fn is_dotnet6_installed() -> Result<bool, String> {
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-    let key = hklm.open_subkey_with_flags(
-        r"SOFTWARE\WOW6432Node\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App", 
-        KEY_READ
-    ).map_err(|op| op.to_string())?;
+    let keys = [
+        r"SOFTWARE\WOW6432Node\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App",
+        r"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App",
+    ];
 
-    let contains_dotnet_6 = key
-        .enum_values()
-        .filter_map(Result::ok)
-        .any(|(name, _)| name.starts_with("6."));
+    for key in keys {
+        if let Ok(key) = hklm.open_subkey_with_flags(key, KEY_READ) {
+            if key.enum_values().filter_map(Result::ok).any(|(name, _)| name.starts_with("6.")) {
+                return Ok(true);
+            }
+        }
+    }
 
-    Ok(contains_dotnet_6)
+    // fall back to the default install location in case the registry entries are missing
+    let program_files = env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".into());
+    let runtime_dir = Path::new(&program_files).join(r"dotnet\shared\Microsoft.NETCore.App");
+    let has_runtime_dir = fs::read_dir(runtime_dir)
+        .map(|entries| entries.filter_map(Result::ok).any(|e| e.file_name().to_string_lossy().starts_with("6.")))
+        .unwrap_or(false);
+
+    Ok(has_runtime_dir)
 }
 
 #[tauri::command]
@@ -95,11 +101,16 @@ fn get_file_description(path: impl AsRef<Path>) -> Result<String, Box<dyn Error>
 #[tauri::command]
 async fn get_steam_path() -> Option<String> {
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let steam_install: PathBuf = hklm.open_subkey_with_flags(r"SOFTWARE\WOW6432Node\Valve\Steam", KEY_READ)
     .and_then(|key| key.get_value::<String, _>("InstallPath"))
     .or_else(|_| {
         hklm.open_subkey_with_flags(r"SOFTWARE\Valve\Steam", KEY_READ)
             .and_then(|key| key.get_value::<String, _>("InstallPath"))
+    })
+    .or_else(|_| {
+        hkcu.open_subkey_with_flags(r"Software\Valve\Steam", KEY_READ)
+            .and_then(|key| key.get_value::<String, _>("SteamPath"))
     }).ok()?
     .into();
 
@@ -147,28 +158,30 @@ async fn get_steam_path() -> Option<String> {
 fn unzip_file(source: &str, destination: &str) -> Result<(), String> {
     let reader = File::open(source).map_err(|e| e.to_string())?;
     let mut archive = ZipArchive::new(reader).map_err(|e| e.to_string())?;
+    let destination = Path::new(destination);
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
-        let outpath = file.sanitized_name();
-        let outpath = format!("{}/{}", destination, outpath.to_str().ok_or("Invalid path")?);
+        // enclosed_name rejects entries that would escape the destination (e.g. "../")
+        let Some(relative) = file.enclosed_name() else {
+            continue;
+        };
+        let outpath = destination.join(relative);
 
         if file.is_dir() {
-            if !std::path::Path::new(&outpath).exists() {
-                fs::create_dir_all(&outpath).map_err(|e| e.to_string())?;
-            }
-            continue; // Skip to the next iteration since it's a directory.
+            fs::create_dir_all(&outpath).map_err(|e| e.to_string())?;
+            continue;
         }
 
-        if let Some(parent_dir) = std::path::Path::new(&outpath).parent() {
+        if let Some(parent_dir) = outpath.parent() {
             fs::create_dir_all(parent_dir).map_err(|e| e.to_string())?;
         }
 
-        if std::path::Path::new(&outpath).exists() {
-            fs::remove_file(&outpath).map_err(|e| e.to_string())?;
+        if outpath.exists() {
+            fs::remove_file(&outpath).map_err(|e| format!("{}: {}", outpath.display(), e))?;
         }
-        
-        let mut outfile = File::create(&outpath).map_err(|e| e.to_string())?;
+
+        let mut outfile = File::create(&outpath).map_err(|e| format!("{}: {}", outpath.display(), e))?;
         std::io::copy(&mut file, &mut outfile).map_err(|e| e.to_string())?;
     }
     Ok(())

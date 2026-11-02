@@ -1,277 +1,346 @@
 <script lang="ts">
-  import { processProgress, processing } from './store';
-  import { InstallMode, type FeatureInstaller } from "./featureInstaller";
-    import { GithubInfo, redLoaderInfo } from './githubInfo';
-    import { onMount, createEventDispatcher } from 'svelte';
-    import { ModDatabase, type Mod, type InstalledMod } from './mods';
-    import StatusButton from './StatusButton.svelte';
-    import { downloadAndInstall } from './utils';
+    import { createEventDispatcher } from 'svelte';
+    import { errorMessage, notify, runTask } from './store';
+    import { ModDatabase, type Mod } from './mods';
+    import { confirmAction } from './utils';
+    import UilArrowCircleDown from "~icons/uil/arrow-circle-down";
+    import UilTrashAlt from "~icons/uil/trash-alt";
+    import UilSync from "~icons/uil/sync";
+    import UilExternalLinkAlt from "~icons/uil/external-link-alt";
+    import UilBox from "~icons/uil/box";
+    import UilExclamationTriangle from "~icons/uil/exclamation-triangle";
 
     export let mod: Mod;
-    export let isGrid: boolean = false;
 
-    let isLibrary = false;
-    let isImageLoaded = false;
+    let imageFailed = false;
+    let imageLoaded = false;
+    let toggling = false;
 
-    const dispatch = createEventDispatcher();
+    $: isLibrary = mod.type === "Library";
+    $: installedVersion = mod.installedMod?.manifest.version;
+    $: layoutIssue = mod.installedMod?.layoutIssue;
 
-    onMount(async () => {
-      isLibrary = mod.type == "Library";
-    });
+    const dispatch = createEventDispatcher<{ changed: void }>();
+
+    async function install() {
+        await runTask(`Installing ${mod.name}...`, () => ModDatabase.installMod(mod), `${mod.name} installed.`);
+        dispatch("changed");
+    }
 
     async function update() {
-      if (!mod.installedMod) {
-        return;
-      }
-      await uninstall();
-      await install();
-
-      dispatch("refreshMods");
+        if (!mod.installedMod) return;
+        const installed = mod.installedMod;
+        await runTask(`Updating ${mod.name}...`, async () => {
+            await ModDatabase.uninstallMod(installed);
+            await ModDatabase.installMod(mod);
+        }, `${mod.name} updated to ${mod.latestVersion}.`);
+        dispatch("changed");
     }
 
     async function uninstall() {
-
-      if (!mod.installedMod) {
-        return;
-      }
-
-      processing.set(true);
-      processProgress.set(0);
-
-      await ModDatabase.uninstallMod(mod.installedMod);
-      await refresh();
-
-      processing.set(false);
-
-      dispatch("refreshMods");
+        if (!mod.installedMod) return;
+        if (!(await confirmAction(`Uninstall ${mod.name}`, `Remove ${mod.name} and its files from the game?`))) return;
+        const installed = mod.installedMod;
+        await runTask(`Removing ${mod.name}...`, () => ModDatabase.uninstallMod(installed), `${mod.name} removed.`);
+        dispatch("changed");
     }
 
-    async function install() {
-      processing.set(true);
-      processProgress.set(0);
+    async function fixLayout() {
+        if (!mod.installedMod) return;
+        const installed = mod.installedMod;
+        const where = installed.layoutIssue === "nested"
+            ? `It was extracted into an extra folder inside Mods.`
+            : `Its .dll is in the game folder instead of Mods.`;
+        if (!(await confirmAction(`Fix ${mod.name}`, `${where} RedLoader won't load it there.
 
-      await ModDatabase.installMod(mod);
-      await refresh();
-
-      processing.set(false);
-
-      dispatch("refreshMods");
+Move ${installed.modName}.dll and the ${installed.modName} folder directly into ${installed.targetFolder}?`))) return;
+        await runTask(`Fixing ${mod.name}...`, () => ModDatabase.fixLayout(installed), `${mod.name} moved to the right folder.`);
+        dispatch("changed");
     }
 
-    async function enableMod() {
-      if (!mod.installedMod) {
-        return;
-      }
-
-      await ModDatabase.toggleMod(mod.installedMod, true);
-      await refresh();
-    }
-
-    async function disableMod() {
-      if (!mod.installedMod) {
-        return;
-      }
-
-      await ModDatabase.toggleMod(mod.installedMod, false);
-      await refresh();
-    }
-
-    async function refresh() {
-      mod = mod;
-      if(mod)
-      {
-        isLibrary = mod.type == "Library";
-      }
-      //installedMod = ModDatabase.getInstalledMod(mod.mod_id);
-      //isModInstalled = installedMod !== undefined;
-
-      //isUpdateAvailable = false;
+    async function toggle() {
+        if (!mod.installedMod || toggling) return;
+        toggling = true;
+        try {
+            await ModDatabase.toggleMod(mod.installedMod, !mod.installedMod.isEnabled);
+            mod = mod;
+        } catch (error) {
+            notify(`Couldn't change ${mod.name}: ${errorMessage(error)}`, "error");
+        } finally {
+            toggling = false;
+        }
     }
 
     function formatDate(dateString: string) {
-      const date = new Date(dateString);
-      return date.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      });
-    };
-    
-    function onImageLoad() {
-      isImageLoaded = true;
+        return new Date(dateString).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
     }
 </script>
 
-<div class="feature-container description {isGrid?'grid-thing':''}">
-  <span class="mod-title">{mod.name} (<a on:click={() => ModDatabase.openModPage(mod)} class="site-link">view on site</a>)</span>
-  <span class="description-content header-desc">{mod.shortDescription?mod.shortDescription:""}</span>
-  <div class="mod-card-horizontal">
-    <!-- <img class="cover-img" src="{mod.imageUrl?mod.imageUrl:"https://placehold.co/600x400/252525/FFF?text=No+Image"}" /> -->
-    <div class="image-container">
-      <img
-        class="cover-img main-image"
-        class:isImageLoaded={!isImageLoaded}
-        src="https://placehold.co/600x400/252525/FFF?text=Loading"
-        alt="Loading..."
-      />
-      
-      <img
-        class="cover-img main-image"
-        class:isImageLoaded
-        src={mod.imageUrl?mod.imageUrl:"https://placehold.co/600x400/252525/FFF?text=No+Image"}
-        alt="Mod cover..."
-        on:load={onImageLoad}
-      />
-    </div>
-    <div class="vertical">
-      {#if mod.isInstalled && !isLibrary && !isGrid}
-        {#if mod.installedMod?.isEnabled}
-          <button class="toggle-button install" on:click={disableMod}>Enabled</button>
+<article class="mod-card" class:disabled={mod.isInstalled && mod.installedMod && !mod.installedMod.isEnabled}>
+    <div class="cover">
+        {#if mod.imageUrl && !imageFailed}
+            <img
+                src={mod.imageUrl}
+                alt=""
+                loading="lazy"
+                class:loaded={imageLoaded}
+                on:load={() => imageLoaded = true}
+                on:error={() => imageFailed = true}
+            />
         {:else}
-          <button class="toggle-button uninstall" on:click={enableMod}>Disabled</button>
+            <div class="cover-placeholder"><UilBox /></div>
         {/if}
-      {/if}
-      <span class="description-content">Author: <b class="update">{mod.user.name}</b></span>
-      <span class="description-content">Version: <b class="update">{mod.latestVersion}</b></span>
-      <span class="description-content">Updated: <b class="update">{mod.lastReleasedAt?formatDate(mod.lastReleasedAt):"-"}</b></span>
-      <span class="description-content">Category: <b class="update">{mod.category?mod.category.name:"-"}</b></span>
+        {#if mod.hasUpdate}
+            <span class="badge badge-info cover-badge">Update</span>
+        {:else if isLibrary}
+            <span class="badge cover-badge">Library</span>
+        {/if}
     </div>
-  </div>
 
-  {#if mod.isInstalled && !isLibrary && isGrid}
-    {#if mod.installedMod?.isEnabled}
-      <button class="toggle-button grid-toggle-button install" on:click={disableMod}>Enabled</button>
-    {:else}
-      <button class="toggle-button grid-toggle-button uninstall" on:click={enableMod}>Disabled</button>
+    <div class="body">
+        <div class="title-row">
+            <h3 class="title" title={mod.name}>{mod.name}</h3>
+            {#if !mod.isLocalOnly}
+                <button class="btn-ghost link-btn" title="View on sotf-mods.com" on:click={() => ModDatabase.openModPage(mod)}>
+                    <UilExternalLinkAlt />
+                </button>
+            {/if}
+        </div>
+        <span class="author">by {mod.user?.name ?? "Unknown"}</span>
+        <p class="desc">{mod.shortDescription ?? (mod.isLocalOnly ? "Installed locally, not listed on sotf-mods.com." : "")}</p>
+
+        <div class="meta">
+            <span title="Latest version">
+                {#if mod.hasUpdate && installedVersion}v{installedVersion} → {/if}v{mod.latestVersion}
+            </span>
+            {#if mod.lastReleasedAt}<span>{formatDate(mod.lastReleasedAt)}</span>{/if}
+            {#if mod.category?.name}<span>{mod.category.name}</span>{/if}
+        </div>
+    </div>
+
+    {#if layoutIssue}
+        <div class="layout-warning">
+            <UilExclamationTriangle />
+            <span>In the wrong folder, so RedLoader won't load it.</span>
+            <button class="link" on:click={fixLayout}>Fix</button>
+        </div>
     {/if}
-  {/if}
 
-  <div class="bottom-container">
-    <StatusButton isUpdateAvailable={mod.hasUpdate} isModInstalled={mod.isInstalled} update={update} uninstall={uninstall} install={install} />
-  </div>
-</div>
+    <div class="footer">
+        {#if mod.isInstalled}
+            {#if !isLibrary && mod.installedMod}
+                <label class="switch" title={mod.installedMod.isEnabled ? "Enabled — click to disable" : "Disabled — click to enable"}>
+                    <input type="checkbox" checked={mod.installedMod.isEnabled} disabled={toggling} on:change={toggle} />
+                    <span class="switch-track"></span>
+                    <span class="switch-label">{mod.installedMod.isEnabled ? "Enabled" : "Disabled"}</span>
+                </label>
+            {/if}
+            <span class="spacer"></span>
+            {#if mod.hasUpdate}
+                <button class="btn-info" on:click={update}><UilSync /> Update</button>
+            {/if}
+            <button class="btn-danger" title="Uninstall" on:click={uninstall}><UilTrashAlt />{mod.hasUpdate ? "" : " Uninstall"}</button>
+        {:else}
+            <span class="spacer"></span>
+            <button class="btn-success" on:click={install}><UilArrowCircleDown /> Install</button>
+        {/if}
+    </div>
+</article>
 
 <style>
-  .mod-card-horizontal {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-  }
+    .mod-card {
+        display: flex;
+        flex-direction: column;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        transition: border-color 0.15s;
+    }
 
-  .vertical {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    margin-left: 0.7em;
-  }
-  
-  .mod-card-horizontal > * {
-    /* margin-right: 1em; */
-    flex: 1;
-  }
+    .mod-card:hover {
+        border-color: var(--border-strong);
+    }
 
-  .feature-container > * {
-    width: 100%;
-  }
+    .mod-card.disabled .cover,
+    .mod-card.disabled .body {
+        opacity: 0.55;
+    }
 
-  .feature-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    position: relative;
-  }
+    .cover {
+        position: relative;
+        aspect-ratio: 16 / 7;
+        overflow: hidden;
+        background: var(--surface-2);
+    }
 
-  .header-desc {
-    height: 3em;
-  }
+    .cover img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0;
+        transition: opacity 0.25s;
+    }
 
-  .description {
-    padding: 10px;
-    /* border-radius: 10px; */
-    /* border: 2px solid #414141; */
-    /* border-bottom: 2px solid #414141; */
+    .cover img.loaded {
+        opacity: 1;
+    }
 
-    border-radius: 10px;
-    border-bottom: 2px solid #333;
-    background-color: #121212;
+    .cover-placeholder {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        font-size: 2.2em;
+        color: var(--surface-3);
+    }
 
-    margin-bottom: 20px;
-    margin-right: 0.4em;
-  }
+    .cover-badge {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        backdrop-filter: blur(6px);
+    }
 
-  .description-content {
-    display: block;
-    text-align: left;
-    font-size: 0.9em;
-    color: #767676;
-    margin-bottom: 1em;
-  }
+    .body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: 12px 14px 0;
+    }
 
-  .description-content > b {
-    font-weight: 500;
-  }
+    .title-row {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
 
-  .mod-title {
-    margin-top: 0.2em;
-    display: block;
-    font-size: 1.2em;
-    font-weight: bold;
-    color: #a2a2a2;
-    text-align: left;
-  }
+    .title {
+        flex: 1;
+        min-width: 0;
+        font-size: 1.02em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 
-  .site-link {
-    cursor: pointer;
-    font-weight: 700;
-    font-size: 0.65em;
-    text-transform: lowercase;
-  }
+    .link-btn {
+        padding: 4px;
+        margin: -4px -6px -4px 0;
+    }
 
-  .grid-toggle-button {
-    position: absolute;
-    bottom: 1.4em;
-    left: 1em;
-    bottom: 7em;
-  }
+    .author {
+        font-size: 0.85em;
+        color: var(--text-faint);
+    }
 
-  .toggle-button {
-    padding: 0;
-    height: 2em;
-    width: 7em;
-    font-size: 0.9em;
-    font-weight: 400;
-    background-color: rgb(25, 25, 25);
-    align-self: flex-start;
-  }
+    .desc {
+        margin-top: 6px;
+        font-size: 0.88em;
+        color: var(--text-muted);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        min-height: 2.9em;
+    }
 
-  .grid-thing {
-    max-height: 25em;
-  }
+    .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 12px;
+        margin-top: 8px;
+        font-size: 0.8em;
+        color: var(--text-faint);
+    }
 
-  .image-container {
-    position: relative;
-    width: 100%;
-    /* height: 12.5em; */
-    padding-bottom: 29%;
-    margin-bottom: 1em;
-  }
-  
-  .cover-img {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    border-radius: 10px;
-    object-fit: cover;
-    transition: opacity 0.3s ease-in-out;
-  }
-  
-  .main-image {
-    opacity: 0;
-  }
-  
-  .main-image.isImageLoaded {
-    opacity: 1;
-  }
+    .layout-warning {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 10px 14px 0;
+        padding: 6px 10px;
+        border-radius: var(--radius-sm);
+        background: var(--warning-soft);
+        color: var(--warning);
+        font-size: 0.82em;
+    }
+
+    .layout-warning span {
+        flex: 1;
+    }
+
+    .layout-warning button.link {
+        color: inherit;
+        text-decoration: underline;
+    }
+
+    .footer {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 12px 14px 14px;
+    }
+
+    .footer button {
+        padding: 0.4em 0.85em;
+    }
+
+    .spacer {
+        flex: 1;
+    }
+
+    .switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        font-size: 0.85em;
+        color: var(--text-muted);
+    }
+
+    .switch input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .switch-track {
+        position: relative;
+        width: 32px;
+        height: 18px;
+        border-radius: 999px;
+        background: var(--surface-3);
+        transition: background-color 0.15s;
+    }
+
+    .switch-track::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--text-muted);
+        transition: transform 0.15s, background-color 0.15s;
+    }
+
+    .switch input:checked + .switch-track {
+        background: var(--success);
+    }
+
+    .switch input:checked + .switch-track::after {
+        transform: translateX(14px);
+        background: #fff;
+    }
+
+    .switch input:focus-visible + .switch-track {
+        outline: 2px solid var(--info);
+        outline-offset: 2px;
+    }
 </style>

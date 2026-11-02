@@ -8,7 +8,7 @@
   },
   "package": {
     "productName": "RedModManager",
-    "version": "1.1.9"
+    "version": "1.2.0"
   },
   "tauri": {
     "allowlist": {
@@ -25,6 +25,11 @@
             "name": "dotnet-install-template",
             "cmd": "dotnet",
             "args": ["new", "--install", "RedLoader.Templates"]
+          },
+          {
+            "name": "dotnet-install-template-new",
+            "cmd": "dotnet",
+            "args": ["new", "install", "RedLoader.Templates"]
           },
           {
             "name": "dotnet-create-project",
@@ -70,8 +75,11 @@
         "fullscreen": false,
         "resizable": true,
         "title": "RedModManager",
-        "width": 800,
-        "height": 650
+        "width": 960,
+        "height": 720,
+        "minWidth": 720,
+        "minHeight": 560,
+        "center": true
       }
     ]
   }
