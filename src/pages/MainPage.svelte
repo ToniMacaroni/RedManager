@@ -26,6 +26,8 @@
         {#each features as feature}
             <InstallFeature feature={feature} />
         {/each}
+    {:else}
+        <span class="path-hint">Couldn't find Sons Of The Forest automatically. Use the "..." button and pick SonsOfTheForest.exe from your game folder.</span>
     {/if}
     <br>
     <br>
@@ -40,6 +42,12 @@
 </div>
 
 <style>
+    .path-hint {
+        color: #a2a2a2;
+        font-weight: 500;
+        margin: 1em 0;
+    }
+
     .tool-button {
         /* background: transparent; */
         /* border: 0; */

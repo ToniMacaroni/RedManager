@@ -58,8 +58,10 @@
     try {
       let steamPath = await invoke("get_steam_path");
       console.log(steamPath);
-      gameExePath.set(steamPath as string);
-      isPathValid.set(true);
+      if (steamPath) {
+        gameExePath.set(steamPath as string);
+        isPathValid.set(true);
+      }
     } catch (err) {
       console.log(err);
     }
