@@ -13,6 +13,7 @@
     import SvgSpinnersBlocksWave from '~icons/svg-spinners/blocks-wave'
 
     let filtered: Mod[] = [];
+    let installedList: Mod[] = [];
     let filterTerm: string = "";
 
     let onlineSelected = true;
@@ -22,18 +23,26 @@
 
     let page = 1;
 	let newBatch: Mod[] = [];
-    let isLoading: boolean = false;
+    let isLoading: boolean = true;
+    let loadFailed: boolean = false;
 
     async function fetchData() {
         //processing.set(true);
         //processProgress.set(0);
         //processName.set("Loading mods...");
         isLoading = true;
-        let res = await ModDatabase.fetchMods(page, Sorting.newest, true, false, filterTerm);
-        let mods = res.data;
-        await ModDatabase.initModList(mods);
-		newBatch = mods;
-        filtered = [...filtered, ...newBatch];
+        loadFailed = false;
+        try {
+            let res = await ModDatabase.fetchMods(page, Sorting.newest, true, false, filterTerm);
+            let mods = res.data;
+            await ModDatabase.initModList(mods);
+            newBatch = mods;
+            filtered = [...filtered, ...newBatch];
+        } catch (err) {
+            console.log(err);
+            newBatch = [];
+            loadFailed = true;
+        }
         isLoading = false;
         //processing.set(false);
 	};
@@ -52,7 +61,11 @@
         //await filter();
         //processing.set(false);
         
-        await ModDatabase.initDatabase();
+        try {
+            await ModDatabase.initDatabase();
+        } catch (err) {
+            console.log(err);
+        }
         await fetchData();
         
 
@@ -86,10 +99,19 @@
 
     const handleSearchInput = debounce(async e => {
         filterTerm = e.target.value;
+        if (installedSelected) {
+            filterInstalled();
+            return;
+        }
         page = 1;
         filtered = [];
         await fetchData();
     }, 600);
+
+    function filterInstalled() {
+        let term = filterTerm.trim().toLowerCase();
+        filtered = installedList.filter((mod) => mod.name.toLowerCase().includes(term));
+    }
 
     async function toggleOnline() {
         // onlineSelected = !onlineSelected;
@@ -108,13 +130,28 @@
         onlineSelected = false;
         installedSelected = true;
         isLoading = true;
+        loadFailed = false;
         filtered = [];
-        filtered = await ModDatabase.getInstalledMods();
+        try {
+            installedList = await ModDatabase.getInstalledMods();
+            filterInstalled();
+        } catch (err) {
+            console.log(err);
+            loadFailed = true;
+        }
         isLoading = false;
         // page = 1;
         // filtered = [];
         // await fetchData();
         //await filter();
+    }
+
+    async function retry() {
+        if (installedSelected) {
+            await toggleInstalled();
+            return;
+        }
+        await fetchData();
     }
 
     async function refreshMods() {
@@ -132,7 +169,7 @@
 
 <svelte:window on:resize={() => isGrid = window.innerWidth > 1000} />
 <div class="column">
-    {#if isPathValid}
+    {#if $isPathValid}
         <div class="row-center">
             <input class="generic-input search-input" placeholder="Search" type="text" on:input={handleSearchInput} />
             <button class="btn-left cat-btn" class:cat-btn-selected={onlineSelected} on:click={toggleOnline}>Online</button>
@@ -146,6 +183,16 @@
 
             {#if isLoading}
             <SvgSpinnersBlocksWave style="font-size: 2em; color: #f65050; position: absolute; bottom: 40px;" />
+            {/if}
+
+            {#if loadFailed}
+                <div class="status-msg">
+                    Couldn't load mods, check your connection.
+                    <br>
+                    <button on:click={retry}>Retry</button>
+                </div>
+            {:else if !isLoading && filtered.length === 0}
+                <div class="status-msg">No mods found.</div>
             {/if}
 
             <InfiniteScroll
@@ -189,6 +236,13 @@
     .cat-btn-selected {
         background-color: #111;
         color: #659cf0;
+    }
+
+    .status-msg {
+        grid-column: 1 / -1;
+        padding: 2em 0;
+        color: #a2a2a2;
+        text-align: center;
     }
 
     .no-corner {

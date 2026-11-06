@@ -45,10 +45,14 @@
   }
 
   onMount( async () => {
-    await feature.refreshMode();
-    currentMode = feature.currentModeState;
-    featureLabel = await feature.getRemoteVersionString(true)??feature.getName();
-    await refreshVisibility();
+    try {
+      await feature.refreshMode();
+      currentMode = feature.currentModeState;
+      featureLabel = await feature.getRemoteVersionString(true)??feature.getName();
+      await refreshVisibility();
+    } catch (err) {
+      console.log(err);
+    }
     loading = false;
   });
 

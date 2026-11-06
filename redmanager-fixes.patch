@@ -1,0 +1,238 @@
+diff --git a/src/App.svelte b/src/App.svelte
+index 4b40ef6..c4460d1 100644
+--- a/src/App.svelte
++++ b/src/App.svelte
+@@ -58,8 +58,10 @@
+     try {
+       let steamPath = await invoke("get_steam_path");
+       console.log(steamPath);
+-      gameExePath.set(steamPath as string);
+-      isPathValid.set(true);
++      if (steamPath) {
++        gameExePath.set(steamPath as string);
++        isPathValid.set(true);
++      }
+     } catch (err) {
+       console.log(err);
+     }
+diff --git a/src/lib/InstallationComponent.svelte b/src/lib/InstallationComponent.svelte
+index 81e4f86..f29281a 100644
+--- a/src/lib/InstallationComponent.svelte
++++ b/src/lib/InstallationComponent.svelte
+@@ -45,10 +45,14 @@
+   }
+ 
+   onMount( async () => {
+-    await feature.refreshMode();
+-    currentMode = feature.currentModeState;
+-    featureLabel = await feature.getRemoteVersionString(true)??feature.getName();
+-    await refreshVisibility();
++    try {
++      await feature.refreshMode();
++      currentMode = feature.currentModeState;
++      featureLabel = await feature.getRemoteVersionString(true)??feature.getName();
++      await refreshVisibility();
++    } catch (err) {
++      console.log(err);
++    }
+     loading = false;
+   });
+ 
+diff --git a/src/lib/PathSelector.svelte b/src/lib/PathSelector.svelte
+index ce19b24..da92d72 100644
+--- a/src/lib/PathSelector.svelte
++++ b/src/lib/PathSelector.svelte
+@@ -2,6 +2,7 @@
+     import { fs, dialog } from "@tauri-apps/api";
+     import { writable } from "svelte/store";
+     import { gameExePath, isPathValid } from "./store";
++    import { showMessageBox } from "./utils";
+ 
+     async function selectPath() {
+         try {
+@@ -14,6 +15,8 @@
+                 if (exe.endsWith("SonsOfTheForest.exe")) {
+                     gameExePath.set(result as string);
+                     isPathValid.set(true);
++                } else {
++                    await showMessageBox("Wrong file", "Please select SonsOfTheForest.exe");
+                 }
+             }
+         } catch (error) {
+diff --git a/src/pages/MainPage.svelte b/src/pages/MainPage.svelte
+index bf9dd98..9d3653d 100644
+--- a/src/pages/MainPage.svelte
++++ b/src/pages/MainPage.svelte
+@@ -26,6 +26,8 @@
+         {#each features as feature}
+             <InstallFeature feature={feature} />
+         {/each}
++    {:else}
++        <span class="path-hint">Couldn't find Sons Of The Forest automatically. Use the "..." button and pick SonsOfTheForest.exe from your game folder.</span>
+     {/if}
+     <br>
+     <br>
+@@ -40,6 +42,12 @@
+ </div>
+ 
+ <style>
++    .path-hint {
++        color: #a2a2a2;
++        font-weight: 500;
++        margin: 1em 0;
++    }
++
+     .tool-button {
+         /* background: transparent; */
+         /* border: 0; */
+diff --git a/src/pages/Mods.svelte b/src/pages/Mods.svelte
+index 0f83277..dc8b806 100644
+--- a/src/pages/Mods.svelte
++++ b/src/pages/Mods.svelte
+@@ -13,6 +13,7 @@
+     import SvgSpinnersBlocksWave from '~icons/svg-spinners/blocks-wave'
+ 
+     let filtered: Mod[] = [];
++    let installedList: Mod[] = [];
+     let filterTerm: string = "";
+ 
+     let onlineSelected = true;
+@@ -22,18 +23,26 @@
+ 
+     let page = 1;
+ 	let newBatch: Mod[] = [];
+-    let isLoading: boolean = false;
++    let isLoading: boolean = true;
++    let loadFailed: boolean = false;
+ 
+     async function fetchData() {
+         //processing.set(true);
+         //processProgress.set(0);
+         //processName.set("Loading mods...");
+         isLoading = true;
+-        let res = await ModDatabase.fetchMods(page, Sorting.newest, true, false, filterTerm);
+-        let mods = res.data;
+-        await ModDatabase.initModList(mods);
+-		newBatch = mods;
+-        filtered = [...filtered, ...newBatch];
++        loadFailed = false;
++        try {
++            let res = await ModDatabase.fetchMods(page, Sorting.newest, true, false, filterTerm);
++            let mods = res.data;
++            await ModDatabase.initModList(mods);
++            newBatch = mods;
++            filtered = [...filtered, ...newBatch];
++        } catch (err) {
++            console.log(err);
++            newBatch = [];
++            loadFailed = true;
++        }
+         isLoading = false;
+         //processing.set(false);
+ 	};
+@@ -52,7 +61,11 @@
+         //await filter();
+         //processing.set(false);
+         
+-        await ModDatabase.initDatabase();
++        try {
++            await ModDatabase.initDatabase();
++        } catch (err) {
++            console.log(err);
++        }
+         await fetchData();
+         
+ 
+@@ -86,11 +99,20 @@
+ 
+     const handleSearchInput = debounce(async e => {
+         filterTerm = e.target.value;
++        if (installedSelected) {
++            filterInstalled();
++            return;
++        }
+         page = 1;
+         filtered = [];
+         await fetchData();
+     }, 600);
+ 
++    function filterInstalled() {
++        let term = filterTerm.trim().toLowerCase();
++        filtered = installedList.filter((mod) => mod.name.toLowerCase().includes(term));
++    }
++
+     async function toggleOnline() {
+         // onlineSelected = !onlineSelected;
+ 
+@@ -108,8 +130,15 @@
+         onlineSelected = false;
+         installedSelected = true;
+         isLoading = true;
++        loadFailed = false;
+         filtered = [];
+-        filtered = await ModDatabase.getInstalledMods();
++        try {
++            installedList = await ModDatabase.getInstalledMods();
++            filterInstalled();
++        } catch (err) {
++            console.log(err);
++            loadFailed = true;
++        }
+         isLoading = false;
+         // page = 1;
+         // filtered = [];
+@@ -117,6 +146,14 @@
+         //await filter();
+     }
+ 
++    async function retry() {
++        if (installedSelected) {
++            await toggleInstalled();
++            return;
++        }
++        await fetchData();
++    }
++
+     async function refreshMods() {
+         await ModDatabase.loadInstalledMods();
+         
+@@ -132,7 +169,7 @@
+ 
+ <svelte:window on:resize={() => isGrid = window.innerWidth > 1000} />
+ <div class="column">
+-    {#if isPathValid}
++    {#if $isPathValid}
+         <div class="row-center">
+             <input class="generic-input search-input" placeholder="Search" type="text" on:input={handleSearchInput} />
+             <button class="btn-left cat-btn" class:cat-btn-selected={onlineSelected} on:click={toggleOnline}>Online</button>
+@@ -148,6 +185,16 @@
+             <SvgSpinnersBlocksWave style="font-size: 2em; color: #f65050; position: absolute; bottom: 40px;" />
+             {/if}
+ 
++            {#if loadFailed}
++                <div class="status-msg">
++                    Couldn't load mods, check your connection.
++                    <br>
++                    <button on:click={retry}>Retry</button>
++                </div>
++            {:else if !isLoading && filtered.length === 0}
++                <div class="status-msg">No mods found.</div>
++            {/if}
++
+             <InfiniteScroll
+                 hasMore={newBatch.length !== 0 && !installedSelected}
+                 threshold={100}
+@@ -191,6 +238,13 @@
+         color: #659cf0;
+     }
+ 
++    .status-msg {
++        grid-column: 1 / -1;
++        padding: 2em 0;
++        color: #a2a2a2;
++        text-align: center;
++    }
++
+     .no-corner {
+         border-radius: 0;
+     }

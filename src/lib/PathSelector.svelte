@@ -2,6 +2,7 @@
     import { fs, dialog } from "@tauri-apps/api";
     import { writable } from "svelte/store";
     import { gameExePath, isPathValid } from "./store";
+    import { showMessageBox } from "./utils";
 
     async function selectPath() {
         try {
@@ -14,6 +15,8 @@
                 if (exe.endsWith("SonsOfTheForest.exe")) {
                     gameExePath.set(result as string);
                     isPathValid.set(true);
+                } else {
+                    await showMessageBox("Wrong file", "Please select SonsOfTheForest.exe");
                 }
             }
         } catch (error) {
